@@ -1,0 +1,13 @@
+{
+    "recommendations": [
+        "ms-vscode.cpptools-extension-pack",
+        "xaver.clang-format",
+        "ms-vscode.cmake-tools",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "Ranch-Hand-Robotics.rde-pack",
+        "tatsy.vscode-3d-preview",
+        "ms-azuretools.vscode-docker",
+        "usernamehw.errorlens"
+    ]
+}

@@ -1,0 +1,82 @@
+{
+    // 搜索设置
+    "search.exclude": {
+        "**/build": true,
+        "**/install": true,
+        "**/log": true
+    },
+    // 终端配置
+    "terminal.integrated.defaultProfile.linux": "bash",
+    "terminal.integrated.profiles.linux": {
+        "bash": {
+            "path": "/bin/bash",
+            "args": []
+        }
+    },
+
+    // CMake 配置
+    "cmake.configureOnOpen": true,
+
+    // Python 配置
+    "python.defaultInterpreterPath": "/usr/bin/python3",
+
+    // 编辑器通用配置
+    "editor.formatOnSave": true,
+    "editor.tabSize": 4,
+    "ROS2.distro": "humble",
+    "python.autoComplete.extraPaths": [
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ],
+    "cmake.ignoreCMakeListsMissing": true,
+
+    "C_Cpp.intelliSenseEngine": "disabled",
+    "C_Cpp.autocomplete": "disabled",
+    "C_Cpp.errorSquiggles": "disabled",
+    
+    // Clangd 配置
+    "clangd.path": "clangd",
+    "clangd.arguments": [
+        // 指定 compile_commands.json 的路径
+        "--compile-commands-dir=${workspaceFolder}/build",
+        // 后台索引
+        "--background-index",
+        // 禁用自动插入头文件
+        "--header-insertion=never",
+        // 补全时显示更多信息
+        "--completion-style=detailed",
+        "--pch-storage=disk",
+        // 日志级别
+        "--log=info",
+        // 启用clang-tidy静态分析
+        "--clang-tidy",
+        // 跨文件重命名
+        "--cross-file-rename",
+        // 并行索引任务数
+        "-j=4",
+        // 限制补全结果数量
+        "--limit-results=50"
+    ],
+    // Clangd fallback 配置 - 用于没有 compile_commands.json 时的文件（如头文件）
+    "clangd.fallbackFlags": [
+        "-std=c++17",
+        // ROS2 核心头文件
+        "-I/opt/ros/humble/include",
+        // 第三方库
+        "-I/usr/include/eigen3",
+        "-I/usr/include/pcl-1.12",
+        "-I/usr/include/opencv4",
+        "-I/usr/include/vtk-9.1"
+    ],
+    "clangd.onConfigChanged": "prompt",
+    // 排除不需要索引的目录
+    "files.watcherExclude": {
+        "**/build/**": true,
+        "**/install/**": true,
+        "**/log/**": true
+    }
+}
