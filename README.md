@@ -21,8 +21,8 @@ rosdep install -r --from-paths src --ignore-src --rosdistro $ROS_DISTRO -y
 colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON --parallel-workers 4
 ```
 
-4. 
+4. 在宿主机内使用解决X11授权
 ```bash
-sudo xhost + 
-ros2 run nav2_map_server map_saver_cli -f MAS 
+xhost +si:localuser:root
+
 ```

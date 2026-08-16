@@ -31,6 +31,7 @@ RUN apt update && apt install -y \
     iputils-ping \
     ros-humble-octomap* \
     libomp-dev \
+    libasio-dev\
     ros-humble-pcl-ros ros-humble-pcl-conversions ros-humble-visualization-msgs ros-humble-rosbag2-storage-mcap ros-humble-rqt-tf-tree libceres-dev \
     ros-humble-gtsam ros-humble-gtsam-dbgsym clang-tidy
 
