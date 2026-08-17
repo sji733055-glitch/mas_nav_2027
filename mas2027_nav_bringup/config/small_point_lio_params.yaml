@@ -1,0 +1,124 @@
+# MID360 驱动参数（Small Point-LIO）
+mid360_driver:
+  ros__parameters:
+    lidar_topic: /mid360_driver/lidar
+    lidar_frame: lidar_link
+    imu_topic: /mid360_driver/imu
+    imu_frame: lidar_imu
+    lidar_publish_time_interval: 0.05 # 雷达点云发布间隔，单位秒
+    host_ip: 192.168.1.50 # 主机ip地址
+    is_topic_name_with_lidar_ip: false # 是否在话题名后面加雷达ip，可以用于区分多个雷达
+    validate_crc: false # 是否校验Livox数据包CRC32
+    max_packet_time_jump: 0.5 # 单个雷达UDP包时间戳允许的最大跳变，单位秒
+    max_packet_time_span: 0.1 # 单个雷达包/发布帧允许的最大点时间跨度，单位秒
+    max_point_range: 300.0 # driver接受的最大点距离，单位米
+    max_imu_acc: 100.0 # driver接受的最大IMU加速度模长
+    max_imu_gyro: 100.0 # driver接受的最大IMU角速度模长
+    min_drop_log_interval: 0.1 # 丢包日志最小打印间隔，单位秒，避免刷屏
+
+# Small Point-LIO 参数配置
+small_point_lio:
+  ros__parameters:
+    lidar_topic: /mid360_driver/lidar                 # 点云话题名
+    imu_topic: /mid360_driver/imu                     # IMU 话题名
+    lidar_type: custom_mid360_driver                  # 雷达适配器：轻量 MID360 驱动
+    lidar_frame: lidar_link                           # 雷达坐标系
+    save_pcd: false                                   # 是否缓存点云供 map_save 服务保存
+
+    # 点云过滤
+    point_filter_num: 1                               # 每 N 个点保留一个点
+    min_distance: 0.5                                 # 最小有效距离，单位米
+    max_distance: 300.0                               # 最大有效距离，单位米
+    space_downsample: true                            # 是否启用体素降采样
+    space_downsample_leaf_size: 0.5                   # 体素降采样分辨率，单位米
+
+    # IMU 处理
+    gravity: [ 0.005676011089235544, -0.34680256247520447, -0.9333460927009583 ]                         # 重力向量，模长用于缩放 IMU 加速度
+    fix_gravity_direction: true                       # 用前 200 帧 IMU 均值估计初始重力方向
+    check_satu: true                                  # 是否检查 IMU 饱和
+    satu_acc: 3.0                                     # 加速度计饱和阈值，当前 IMU 单位为 g
+    satu_gyro: 35.0                                   # 陀螺仪饱和阈值，单位 rad/s
+    acc_norm: 1.0                                     # 静止时加速度模长，当前 IMU 单位为 g
+
+    # 局部地图
+    map_resolution: 0.5                               # SmallIVox 地图分辨率，单位米
+    init_map_size: 10                                 # 初始化地图所需的最少点数
+
+    # LiDAR 到 IMU 的外参
+    extrinsic_est_en: false                           # 是否在线估计雷达与 IMU 外参
+    extrinsic_T: [-0.011, -0.02329, 0.04412]          # LiDAR 原点在 IMU 坐标系中的平移，单位米
+    extrinsic_R: [1.0, 0.0, 0.0,                     # LiDAR 到 IMU 的旋转矩阵
+                  0.0, 1.0, 0.0,
+                  0.0, 0.0, 1.0]
+
+    # 滤波器测量噪声 R
+    laser_point_cov: 0.01                             # 点到平面激光测量协方差
+    imu_meas_acc_cov: 0.01                            # 加速度计测量协方差
+    imu_meas_omg_cov: 0.01                            # 陀螺仪测量协方差
+
+    # 滤波器过程噪声 Q
+    velocity_cov: 20.0                                # 速度过程噪声
+    acceleration_cov: 500.0                           # 加速度过程噪声
+    omg_cov: 1000.0                                   # 角速度过程噪声
+    ba_cov: 0.0001                                    # 加速度计零偏随机游走
+    bg_cov: 0.0001                                    # 陀螺仪零偏随机游走
+    plane_threshold: 0.1                              # 平面判定阈值，越小越严格
+    match_sqaured: 81.0                               # 点面匹配阈值，越小越严格
+
+    # 数据发布
+    publish_odometry_without_downsample: false        # 是否发布未降采样的高频里程计，会增加计算开销
+
+# 局部地形分析参数
+# 坐标与高度调参方法：
+# 1. 输入 /Odometry 表示 odom -> base_link，/cloud_registered 也必须位于 odom 坐标系。
+# 2. 机器人在平地静止时，从点云读取地面 z，并计算 ground_rel_z = ground_z - base_link_z。
+# 3. 所有 RelZ/BoundZ 参数都以 base_link 为高度原点；先覆盖 ground_rel_z，再用实际台阶、斜坡和顶棚数据微调。
+terrainAnalysis:
+  ros__parameters:
+    scanVoxelSize: 0.05
+    decayTime: 1.0
+    noDecayDis: 1.75
+    clearingDis: 8.0
+    useSorting: true
+    quantileZ: 0.25
+    considerDrop: false
+    limitGroundLift: false
+    maxGroundLift: 0.15
+    clearDyObs: true
+    minDyObsDis: 0.3
+    minDyObsAngle: 0.0
+    minDyObsRelZ: -0.3
+    absDyObsRelZThre: 0.2
+    minDyObsVFOV: -28.0
+    maxDyObsVFOV: 33.0
+    minDyObsPointNum: 1
+    noDataObstacle: false
+    noDataBlockSkipNum: 0
+    minBlockPointNum: 10
+    vehicleHeight: 1.5        # 保留的最大离地高度；按机器人可通行净高设置，过小会删掉高障碍，过大会保留顶棚
+    voxelPointUpdateThre: 100
+    voxelTimeUpdateThre: 2.0
+    minRelZ: -1.5             # 相对 base_link 的最低点；建议设为 ground_rel_z 再减 0.1~0.2 m 裕量
+    maxRelZ: 0.3              # 相对 base_link 的最高点；至少覆盖需要检测的最高障碍，过大会引入车体或顶棚
+    disRatioZ: 0.2            # 随水平距离放宽高度窗口的比例；斜坡漏点时增大，顶棚/噪点增多时减小
+
+# 扩展地形分析参数
+terrainAnalysisExt:
+  ros__parameters:
+    scanVoxelSize: 0.1
+    decayTime: 4.0
+    noDecayDis: 0.0
+    clearingDis: 30.0
+    useSorting: true
+    quantileZ: 0.1
+    vehicleHeight: 1.5        # 扩展区域保留的最大离地高度，应与局部地图的 vehicleHeight 保持一致
+    voxelPointUpdateThre: 100
+    voxelTimeUpdateThre: 2.0
+    lowerBoundZ: -2.5         # 相对 base_link 的最低点；以 ground_rel_z 为中心向下留 0.1~0.2 m 裕量
+    upperBoundZ: 1.0          # 相对 base_link 的最高点；按远处需检测的障碍高度设置，过大会纳入顶棚
+    disRatioZ: 0.1            # 远距离高度窗口扩张比例；斜坡漏点时增大，远处噪点过多时减小
+    checkTerrainConn: false   # 顶棚误判明显时开启；开启后用地面高差连通性筛除悬空区域
+    terrainConnThre: 0.5      # 相邻地面允许的最大高差；坡面被断开时增大，顶棚连入地面时减小
+    terrainUnderVehicle: -0.75 # 车下无点时的地面高度，应设为实测 ground_rel_z，而不是固定使用雷达安装高度
+    ceilingFilteringThre: 2.0 # 超过该垂直高差的区域视为顶棚；误删坡道时增大，顶棚残留时减小
+    localTerrainMapRadius: 4.0 # 内圈使用 terrain_map、外圈自行计算；应不大于局部地图有效覆盖半径

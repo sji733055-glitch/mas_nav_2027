@@ -20,7 +20,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, TextSubstitution
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.descriptions import ParameterFile
 from nav2_common.launch import RewrittenYaml
@@ -34,7 +34,7 @@ def generate_launch_description():
     # Create the launch configuration variables、
     namespace = LaunchConfiguration("namespace")
     use_sim_time = LaunchConfiguration("use_sim_time")
-    params_file = LaunchConfiguration("params_file")
+    point_lio_params_file = LaunchConfiguration("point_lio_params_file")
     rviz_config_file = LaunchConfiguration("rviz_config_file")
     use_robot_state_pub = LaunchConfiguration("use_robot_state_pub")
     use_rviz = LaunchConfiguration("use_rviz")
@@ -52,18 +52,18 @@ def generate_launch_description():
         description="Top-level namespace",
     )
  
-    declare_params_file_cmd = DeclareLaunchArgument(
-        "params_file",
+    declare_point_lio_params_file_cmd = DeclareLaunchArgument(
+        "point_lio_params_file",
         default_value=os.path.join(
-            bringup_dir, "config",  "nav2_params.yaml"
+            bringup_dir, "config", "point_lio_params.yaml"
         ),
-        description="Full path to the ROS2 parameters file to use for all launched nodes",
+        description="Full path to the MID360 and Point-LIO parameter file",
     )
 
 
     declare_use_robot_state_pub_cmd = DeclareLaunchArgument(
         "use_robot_state_pub",
-        default_value="False",
+        default_value="True",
         description="Whether to start the robot state publisher",
     )
 
@@ -79,9 +79,9 @@ def generate_launch_description():
 
     # Create our own temporary YAML files that include substitutions
 
-    configured_params = ParameterFile(
+    configured_point_lio_params = ParameterFile(
         RewrittenYaml(
-            source_file=params_file,
+            source_file=point_lio_params_file,
             root_key=namespace,
             param_rewrites={},
             convert_types=True,
@@ -100,14 +100,47 @@ def generate_launch_description():
             "use_sim_time": use_sim_time,
         }.items(),
     )
-
+    # mid360启动
     start_mid360_driver_node = Node(
         package="mid360_driver",
         executable="mid360_driver_node",
         name="mid360_driver",
         output="screen",
-        parameters=[configured_params],
+        parameters=[configured_point_lio_params],
     )
+    # point_lio启动
+    start_point_lio_node = Node(
+        package="point_lio",
+        executable="pointlio_mapping",
+        name="pointlio",
+        output="screen",
+        parameters=[configured_point_lio_params],
+    )
+    # loam_interface启动
+    start_loam_interface = Node(
+        package="loam_interface",
+        executable="loam_interface_node",
+        name="loam_interface",
+        namespace=namespace,
+        output="screen",
+        parameters=[configured_point_lio_params],
+        remappings=[("/tf", "tf"), ("/tf_static", "tf_static")],
+    )
+    # 将雷达里程计转换为统一的 odom -> base_link 接口
+    start_sensor_scan_generation_node = Node(
+        package="sensor_scan_generation",
+        executable="sensor_scan_generation_node",
+        name="sensor_scan_generation",
+        namespace=namespace,
+        output="screen",
+        parameters=[configured_point_lio_params],
+        remappings=[
+            ("/tf", "tf"),
+            ("/tf_static", "tf_static"),
+            ("odometry", "Odometry"),
+        ],
+    )
+
     rviz_cmd = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(launch_dir, "rviz_launch.py")),
         condition=IfCondition(use_rviz),
@@ -124,7 +157,7 @@ def generate_launch_description():
     # Declare the launch options
     ld.add_action(declare_namespace_cmd)
     ld.add_action(declare_use_sim_time_cmd)
-    ld.add_action(declare_params_file_cmd)
+    ld.add_action(declare_point_lio_params_file_cmd)
     ld.add_action(declare_rviz_config_file_cmd)
     ld.add_action(declare_use_robot_state_pub_cmd)
     ld.add_action(declare_use_rviz_cmd)
@@ -132,6 +165,9 @@ def generate_launch_description():
     # Add the actions to launch all of the navigation nodes
     ld.add_action(start_robot_state_publisher_cmd)
     ld.add_action(start_mid360_driver_node)
+    ld.add_action(start_point_lio_node)
+    ld.add_action(start_loam_interface)
+    ld.add_action(start_sensor_scan_generation_node)
     ld.add_action(rviz_cmd)
 
     return ld

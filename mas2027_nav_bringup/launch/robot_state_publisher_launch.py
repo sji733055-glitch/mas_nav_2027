@@ -13,29 +13,25 @@
 # limitations under the License.
 
 
-# NOTE: This startup file is only used when the navigation module is standalone
-# It is used to launch the robot state publisher and joint state publisher.
-# But in a complete robot system, this part should be completed by an independent robot startup module
+# NOTE: This startup file is only used when the navigation module is standalone.
+# In a complete robot system, robot_state_publisher may be started by robot bringup.
 
 import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import PushRosNamespace, SetRemap
 
 
 def generate_launch_description():
-    # Get the launch directory
-    pkg_qdu2026_robot_description_dir = get_package_share_directory(
-        "qdu2026_robot_description"
+    robot_description_dir = get_package_share_directory(
+        "mas2027_robot_description"
     )
 
     namespace = LaunchConfiguration("namespace")
     use_sim_time = LaunchConfiguration("use_sim_time")
-    robot_name = LaunchConfiguration("robot_name")
 
     # Declare the launch arguments
     declare_namespace_cmd = DeclareLaunchArgument(
@@ -50,33 +46,18 @@ def generate_launch_description():
         description="Use simulation (Gazebo) clock if true",
     )
 
-    declare_robot_name_cmd = DeclareLaunchArgument(
-        "robot_name",
-        default_value="qdu2026_sentry_robot",
-        description="The file name of the robot xmacro to be used",
-    )
-
-    bringup_cmd_group = GroupAction(
-        [
-            PushRosNamespace(namespace=namespace),
-            SetRemap("/tf", "tf"),
-            SetRemap("/tf_static", "tf_static"),
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource(
-                    os.path.join(
-                        pkg_qdu2026_robot_description_dir,
-                        "launch",
-                        "robot_description_launch.py",
-                    )
-                ),
-                launch_arguments={
-                    "namespace": namespace,
-                    "use_sim_time": use_sim_time,
-                    "robot_name": robot_name,
-                    "use_rviz": "False",
-                }.items(),
-            ),
-        ]
+    start_robot_description = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(
+                robot_description_dir,
+                "launch",
+                "robot_state_publisher.launch.py",
+            )
+        ),
+        launch_arguments={
+            "namespace": namespace,
+            "use_sim_time": use_sim_time,
+        }.items(),
     )
 
     # Create the launch description and populate
@@ -85,9 +66,8 @@ def generate_launch_description():
     # Declare the launch options
     ld.add_action(declare_namespace_cmd)
     ld.add_action(declare_use_sim_time_cmd)
-    ld.add_action(declare_robot_name_cmd)
 
     # Add the actions to launch all nodes
-    ld.add_action(bringup_cmd_group)
+    ld.add_action(start_robot_description)
 
     return ld
