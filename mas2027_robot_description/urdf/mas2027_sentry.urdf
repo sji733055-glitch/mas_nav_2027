@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot name="mas2027_sentry" xmlns:xacro="http://ros.org/wiki/xacro">
+
+<link name="base_footprint"/>
+
+  <!-- Base Link -->
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <box size="0.5 0.5 0"/> 
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.5 0.5 0"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </collision>
+  </link>
+
+<joint name="base_footprint_to_base_link" type="fixed">
+  <parent link="base_footprint"/>
+  <child link="base_link"/>
+  <origin xyz="0 0 0.1" rpy="0 0 0"/>
+</joint>
+
+  <!-- MID-360 LiDAR Link -->
+  <link name="lidar_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://mas2027_robot_description/meshes/mid360.STL"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <material name="black">
+        <color rgba="0.1 0.1 0.1 1"/>
+      </material>
+    </visual>
+    
+    <collision>
+      <geometry>
+        <mesh filename="package://mas2027_robot_description/meshes/mid360.STL"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </collision>
+  </link>
+
+  <!-- MID-360 LiDAR Joint -->
+  <joint name="lidar_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="lidar_link"/>
+    <origin xyz="0.09 0.03 0.11" rpy="0.3572 0 1.5708"/>
+  </joint>
+
+  <!-- Lakibeam Link -->
+  <link name="lakibeam_frame">
+    <visual>
+      <geometry>
+        <mesh filename="package://mas2027_robot_description/meshes/LakiBeam.STL"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <material name="black">
+        <color rgba="0.1 0.1 0.1 1"/>
+      </material>
+    </visual>
+    
+    <collision>
+      <geometry>
+        <mesh filename="package://mas2027_robot_description/meshes/LakiBeam.STL"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </collision>
+  </link>
+
+  <!-- lakibeam Joint -->
+  <joint name="lakibeam_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="lakibeam_frame"/>
+    <origin xyz="-0.17 0.01 0.17" rpy="0 0 0"/>
+  </joint>
+
+  <link name="chassis_link"/>
+
+  <joint name="chassis_joint" type="fixed">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <parent
+        link="base_link" />
+      <child
+        link="chassis_link" />
+        <axis
+      xyz="0 0 -1" />
+  </joint>
+
+</robot>
