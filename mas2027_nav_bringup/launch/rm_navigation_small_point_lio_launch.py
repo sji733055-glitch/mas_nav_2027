@@ -37,8 +37,12 @@ def generate_launch_description():
     small_point_lio_params_file = LaunchConfiguration(
         "small_point_lio_params_file"
     )
+    nav2_params_file = LaunchConfiguration("nav2_params_file")
     rviz_config_file = LaunchConfiguration("rviz_config_file")
     use_robot_state_pub = LaunchConfiguration("use_robot_state_pub")
+    use_fake_vel_transform = LaunchConfiguration("use_fake_vel_transform")
+    use_nav2 = LaunchConfiguration("use_nav2")
+    use_terrain_analysis = LaunchConfiguration("use_terrain_analysis")
     use_rviz = LaunchConfiguration("use_rviz")
 
     # Declare the launch arguments
@@ -62,11 +66,34 @@ def generate_launch_description():
         description="Full path to the MID360 and Small Point-LIO parameter file",
     )
 
+    declare_nav2_params_file_cmd = DeclareLaunchArgument(
+        "nav2_params_file",
+        default_value=os.path.join(bringup_dir, "config", "nav2_params.yaml"),
+        description="Full path to the Navigation2 parameter file",
+    )
 
     declare_use_robot_state_pub_cmd = DeclareLaunchArgument(
         "use_robot_state_pub",
         default_value="True",
         description="Whether to start the robot state publisher",
+    )
+
+    declare_use_fake_vel_transform_cmd = DeclareLaunchArgument(
+        "use_fake_vel_transform",
+        default_value="True",
+        description="Publish base_link_fake and transform Nav2 velocity into base_link",
+    )
+
+    declare_use_nav2_cmd = DeclareLaunchArgument(
+        "use_nav2",
+        default_value="True",
+        description="Start terrain processing, fake velocity transform, and Nav2",
+    )
+
+    declare_use_terrain_analysis_cmd = DeclareLaunchArgument(
+        "use_terrain_analysis",
+        default_value="True",
+        description="Start terrain_analysis nodes inside the Nav2 launch",
     )
 
     declare_rviz_config_file_cmd = DeclareLaunchArgument(
@@ -119,28 +146,17 @@ def generate_launch_description():
         parameters=[configured_small_point_lio_params],
     )
 
-    start_terrain_analysis_node = Node(
-        package="terrain_analysis",
-        executable="terrainAnalysis",
-        name="terrainAnalysis",
-        output="screen",
-        parameters=[configured_small_point_lio_params],
-        remappings=[
-            ("lidar_odometry", "/Odometry"),
-            ("registered_scan", "/cloud_registered"),
-        ],
-    )
-
-    start_terrain_analysis_ext_node = Node(
-        package="terrain_analysis_ext",
-        executable="terrainAnalysisExt",
-        name="terrainAnalysisExt",
-        output="screen",
-        parameters=[configured_small_point_lio_params],
-        remappings=[
-            ("lidar_odometry", "/Odometry"),
-            ("registered_scan", "/cloud_registered"),
-        ],
+    start_nav2_cmd = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(os.path.join(launch_dir, "nav2_launch.py")),
+        condition=IfCondition(use_nav2),
+        launch_arguments={
+            "namespace": namespace,
+            "use_sim_time": use_sim_time,
+            "nav2_params_file": nav2_params_file,
+            "perception_params_file": small_point_lio_params_file,
+            "use_terrain_analysis": use_terrain_analysis,
+            "use_fake_vel_transform": use_fake_vel_transform,
+        }.items(),
     )
 
     rviz_cmd = IncludeLaunchDescription(
@@ -159,17 +175,20 @@ def generate_launch_description():
     # Declare the launch options
     ld.add_action(declare_namespace_cmd)
     ld.add_action(declare_use_sim_time_cmd)
+    ld.add_action(declare_nav2_params_file_cmd)
     ld.add_action(declare_small_point_lio_params_file_cmd)
     ld.add_action(declare_rviz_config_file_cmd)
     ld.add_action(declare_use_robot_state_pub_cmd)
+    ld.add_action(declare_use_nav2_cmd)
+    ld.add_action(declare_use_terrain_analysis_cmd)
+    ld.add_action(declare_use_fake_vel_transform_cmd)
     ld.add_action(declare_use_rviz_cmd)
 
     # Add the actions to launch all of the navigation nodes
     ld.add_action(start_robot_state_publisher_cmd)
     ld.add_action(start_mid360_driver_node)
     ld.add_action(start_small_point_lio_node)
-    ld.add_action(start_terrain_analysis_node)
-    ld.add_action(start_terrain_analysis_ext_node)
+    ld.add_action(start_nav2_cmd)
     ld.add_action(rviz_cmd)
 
     return ld

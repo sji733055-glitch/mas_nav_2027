@@ -33,7 +33,9 @@ RUN apt update && apt install -y \
     clang-format \
     ros-humble-rmw-cyclonedds-cpp \
     ros-humble-diagnostic-updater \
-    ros-humble-nav2-behaviors \
+    ros-humble-navigation2 \
+    ros-humble-nav2-bringup \
+    ros-humble-slam-toolbox \
     x11-xserver-utils \
     unzip \
     curl \

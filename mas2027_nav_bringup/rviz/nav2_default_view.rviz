@@ -203,7 +203,7 @@ Visualization Manager:
           Value: true
         gimbal_yaw:
           Value: true
-        gimbal_yaw_fake:
+        base_link_fake:
           Value: true
         gimbal_yaw_odom:
           Value: true
@@ -258,7 +258,7 @@ Visualization Manager:
                           {}
                       speed_monitor:
                         {}
-                    gimbal_yaw_fake:
+                    base_link_fake:
                       {}
               light_indicator:
                 {}
@@ -275,7 +275,7 @@ Visualization Manager:
       Length: 0.699999988079071
       Name: GimbalYawFake
       Radius: 0.10000000149011612
-      Reference Frame: gimbal_yaw_fake
+      Reference Frame: base_link_fake
       Value: false
     - Alpha: 1
       Autocompute Intensity Bounds: true
@@ -562,7 +562,7 @@ Visualization Manager:
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: map
+    Fixed Frame: odom
     Frame Rate: 30
   Name: root
   Tools:
