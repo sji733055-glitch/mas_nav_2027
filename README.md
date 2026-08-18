@@ -24,7 +24,49 @@ colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release -DCMAKE_E
 4. 在宿主机内使用解决X11授权
 ```bash
 xhost +si:localuser:root
+```
 
+## SLAM Toolbox 二维建图
+
+建图链路使用 Small Point-LIO 的 `/Odometry` 和 `/cloud_registered`：
+
+```text
+/cloud_registered -> pointcloud_to_laserscan -> /scan -> slam_toolbox
+/Odometry + TF: map -> odom -> base_link
+```
+
+启动建图：
+
+```bash
+ros2 launch mas2027_nav_bringup mapping_launch.py
+```
+
+建图期间不要启动其他 `map -> odom` 发布器。检查数据：
+
+```bash
+ros2 topic hz /scan
+ros2 topic hz /map
+ros2 run tf2_ros tf2_echo map odom
+```
+
+保存 Nav2 使用的二维地图：
+
+```bash
+ros2 run nav2_map_server map_saver_cli \
+  -f /home/ros2_ws/src/mas2027_nav_bringup/map/field
+```
+
+同时保存 SLAM Toolbox 位姿图，供后续 localization 模式使用：
+
+```bash
+ros2 service call /slam_toolbox/serialize_map \
+  slam_toolbox/srv/SerializePoseGraph \
+  "{filename: '/home/ros2_ws/src/mas2027_nav_bringup/map/field'}"
+```
+
+点云切片高度、量程、闭环与分辨率参数位于
+`mas2027_nav_bringup/config/slam_toolbox_mapping.yaml`。高度参数以
+`base_link` 为参考，平地出现在扫描中时提高 `min_height`，低矮障碍消失时降低。
 
 # 项目待办
 
