@@ -25,7 +25,12 @@ namespace small_point_lio {
         filtered_points.reserve(pointcloud.size());
         for (size_t i = 0; i < pointcloud.size(); i++) {
             const auto &point = pointcloud[i];
-            if (point.timestamp >= last_timestamp_dense_point) {
+            float dist = point.position.squaredNorm();
+            const bool in_distance_range =
+                    dist >= parameters->min_distance_squared && dist <= parameters->max_distance_squared;
+            // dense_points 只用于发布 /cloud_registered，同样要过滤半径，
+            // 否则车体自身（雷达上方的云台）会进入地形分析并被标成障碍
+            if (point.timestamp >= last_timestamp_dense_point && in_distance_range) {
                 dense_points.push_back(point);
             }
             if (i % parameters->point_filter_num != 0) {
@@ -34,8 +39,7 @@ namespace small_point_lio {
             if (point.timestamp < last_timestamp_lidar) {
                 continue;
             }
-            float dist = point.position.squaredNorm();
-            if (dist < parameters->min_distance_squared || dist > parameters->max_distance_squared) {
+            if (!in_distance_range) {
                 continue;
             }
             filtered_points.push_back(point);
@@ -53,8 +57,13 @@ namespace small_point_lio {
              [](const auto &x, const auto &y) {
                  return x.timestamp < y.timestamp;
              });
+        // 水位线按本批全部点推进，不受半径过滤影响，避免下一批重复发布同一段点
+        for (const auto &point: pointcloud) {
+            if (point.timestamp > last_timestamp_dense_point) {
+                last_timestamp_dense_point = point.timestamp;
+            }
+        }
         if (!dense_points.empty()) {
-            last_timestamp_dense_point = dense_points.back().timestamp;
             dense_point_deque.insert(dense_point_deque.end(), dense_points.begin(), dense_points.end());
         }
         if (!processed_pointcloud.empty()) {

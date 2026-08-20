@@ -1,39 +1,45 @@
-# Local Navigation2 configuration.
-# Data inputs:
-#   TF: odom -> base_link -> base_link_fake
-#   Odometry: /Odometry
-#   Obstacles: /terrain_map_ext
-# Velocity path:
-#   /cmd_vel_nav -> velocity_smoother -> /cmd_vel_nav_smoothed
-#   -> fake_vel_transform -> /cmd_vel
+# Nav2 局部导航参数（不加载全局地图，全部在里程计坐标系下运行）
+# 数据输入：
+#   TF：odom -> base_link -> base_link_fake
+#   里程计：/Odometry（small_point_lio 发布）
+#   障碍物：局部图用 /terrain_map（terrainAnalysis，近区过滤更严），全局图用 /terrain_map_ext（terrainAnalysisExt，覆盖更远）
+# 速度链路：
+#   controller_server -> /cmd_vel_nav -> velocity_smoother -> /cmd_vel_nav_smoothed
+#   -> fake_vel_transform -> /cmd_vel -> ros2_comm -> 底盘
+# 说明：Nav2 全程在 base_link_fake（yaw 固定在启动方向）中规划，
+#       所以角速度、角加速度相关参数一律置零，车体自旋由 /cmd_spin 单独下发。
 
+# 行为树导航器：加载行为树，调度规划、控制与恢复动作
 bt_navigator:
   ros__parameters:
     use_sim_time: false
-    global_frame: odom
-    robot_base_frame: base_link_fake
-    odom_topic: /Odometry
-    transform_tolerance: 0.3
-    bt_loop_duration: 10
-    default_server_timeout: 20
-    wait_for_service_timeout: 1000
+    global_frame: odom                     # 无全局地图，导航参考系直接用里程计坐标系
+    robot_base_frame: base_link_fake       # yaw 固定的机器人坐标系，让规划与车体朝向解耦
+    odom_topic: /Odometry                  # 速度反馈来源
+    transform_tolerance: 0.3               # TF 允许的最大滞后，单位秒
+    bt_loop_duration: 10                   # 行为树 tick 周期，单位毫秒
+    default_server_timeout: 20             # 行为树节点等待 action 服务响应的超时，单位毫秒
+    wait_for_service_timeout: 1000         # 启动时等待各 server 服务上线的超时，单位毫秒
+    # 单目标点导航行为树：失败时重规划并触发恢复行为
     default_nav_to_pose_bt_xml: $(find-pkg-share mas2027_nav_bringup)/behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml
+    # 多目标点连续导航行为树：失败时重规划并触发恢复行为
     default_nav_through_poses_bt_xml: $(find-pkg-share mas2027_nav_bringup)/behavior_trees/navigate_through_poses_w_replanning_and_recovery.xml
-    plugin_lib_names:
-      - nav2_compute_path_to_pose_action_bt_node
-      - nav2_compute_path_through_poses_action_bt_node
-      - nav2_follow_path_action_bt_node
-      - nav2_back_up_action_bt_node
-      - nav2_wait_action_bt_node
-      - nav2_clear_costmap_service_bt_node
-      - nav2_goal_updated_condition_bt_node
-      - nav2_rate_controller_bt_node
-      - nav2_recovery_node_bt_node
-      - nav2_pipeline_sequence_bt_node
-      - nav2_remove_passed_goals_action_bt_node
-      - nav2_navigate_to_pose_action_bt_node
-      - nav2_navigate_through_poses_action_bt_node
+    plugin_lib_names:                                   # 行为树 XML 用到的节点插件库，缺项会导致行为树加载失败
+      - nav2_compute_path_to_pose_action_bt_node        # 单点路径规划
+      - nav2_compute_path_through_poses_action_bt_node  # 多点路径规划
+      - nav2_follow_path_action_bt_node                 # 路径跟踪
+      - nav2_back_up_action_bt_node                     # 后退恢复
+      - nav2_wait_action_bt_node                        # 等待恢复
+      - nav2_clear_costmap_service_bt_node              # 清空代价地图恢复
+      - nav2_goal_updated_condition_bt_node             # 判断目标点是否被更新
+      - nav2_rate_controller_bt_node                    # 限制子树执行频率
+      - nav2_recovery_node_bt_node                      # 恢复行为循环控制
+      - nav2_pipeline_sequence_bt_node                  # 流水线顺序执行
+      - nav2_remove_passed_goals_action_bt_node         # 剔除已通过的目标点
+      - nav2_navigate_to_pose_action_bt_node            # 单点导航入口
+      - nav2_navigate_through_poses_action_bt_node      # 多点导航入口
 
+# 行为树内部使用的 rclcpp 节点（承载 action 客户端）
 bt_navigator_navigate_to_pose_rclcpp_node:
   ros__parameters:
     use_sim_time: false
@@ -42,227 +48,245 @@ bt_navigator_navigate_through_poses_rclcpp_node:
   ros__parameters:
     use_sim_time: false
 
+# 控制器服务：把全局路径转成速度指令，输出到 /cmd_vel_nav
 controller_server:
   ros__parameters:
     use_sim_time: false
     odom_topic: /Odometry
-    controller_frequency: 20.0
-    failure_tolerance: 0.5
-    min_x_velocity_threshold: 0.001
-    min_y_velocity_threshold: 0.001
-    min_theta_velocity_threshold: 0.001
-    progress_checker_plugin: progress_checker
-    goal_checker_plugins: [general_goal_checker]
-    controller_plugins: [FollowPath]
+    controller_frequency: 20.0             # 控制周期，单位 Hz，需与局部代价地图更新率匹配
+    failure_tolerance: 0.5                 # 允许连续算不出有效速度的时长，单位秒，超时后判定失败
+    min_x_velocity_threshold: 0.001        # 里程计 x 速度低于该值按 0 处理，滤除静止噪声
+    min_y_velocity_threshold: 0.001        # 里程计 y 速度低于该值按 0 处理
+    min_theta_velocity_threshold: 0.001    # 里程计角速度低于该值按 0 处理
+    progress_checker_plugin: progress_checker    # 进度检查插件
+    goal_checker_plugins: [general_goal_checker] # 到点判定插件
+    controller_plugins: [FollowPath]             # 局部规划器插件
 
+    # 进度检查：长时间原地不动则判定导航失败
     progress_checker:
       plugin: nav2_controller::SimpleProgressChecker
-      required_movement_radius: 0.2
-      movement_time_allowance: 10.0
+      required_movement_radius: 0.2        # 时间窗内至少要移动的距离，单位米
+      movement_time_allowance: 10.0        # 允许位移不达标的时长，单位秒
 
+    # 到点判定
     general_goal_checker:
       plugin: nav2_controller::SimpleGoalChecker
-      stateful: true
-      xy_goal_tolerance: 0.15
-      # base_link_fake has fixed yaw. Goal yaw is intentionally ignored.
+      stateful: true                       # 位置达标后不再因抖动回退为未达标
+      xy_goal_tolerance: 0.15              # 位置容差，单位米
+      # base_link_fake 的 yaw 恒定，车体朝向由 /cmd_spin 控制，这里放开到 π 等价于忽略目标朝向
       yaw_goal_tolerance: 3.14159
 
+    # 局部规划器 DWB：只采样 vx/vy（全向底盘），不采样角速度
     FollowPath:
       plugin: dwb_core::DWBLocalPlanner
-      debug_trajectory_details: false
-      min_vel_x: -0.4
-      max_vel_x: 0.4
-      min_vel_y: -0.4
-      max_vel_y: 0.4
-      max_vel_theta: 0.0
-      min_speed_xy: 0.0
-      max_speed_xy: 0.55
-      min_speed_theta: 0.0
-      acc_lim_x: 1.0
-      acc_lim_y: 1.0
-      acc_lim_theta: 0.0
-      decel_lim_x: -1.0
-      decel_lim_y: -1.0
-      decel_lim_theta: 0.0
-      vx_samples: 15
-      vy_samples: 15
-      vtheta_samples: 1
-      sim_time: 1.5
-      linear_granularity: 0.05
-      angular_granularity: 0.05
-      transform_tolerance: 0.3
-      xy_goal_tolerance: 0.15
-      trans_stopped_velocity: 0.05
-      short_circuit_trajectory_evaluation: true
-      stateful: true
+      debug_trajectory_details: false      # 是否发布轨迹打分明细，调参时可开
+      min_vel_x: -1.0                      # x 速度下限，单位 m/s（必须写成浮点，整数会导致参数类型不匹配、controller_server 启动失败）
+      max_vel_x: 1.0                       # x 速度上限，单位 m/s
+      min_vel_y: -1.0                      # y 速度下限，全向底盘可侧移
+      max_vel_y: 1.0                       # y 速度上限
+      max_vel_theta: 0.0                   # 自旋不由 Nav2 控制，角速度恒为 0
+      min_speed_xy: 0.0                    # 合速度下限，0 表示允许停下
+      max_speed_xy: 0.55                   # 合速度上限，低于单轴上限 1.0，实际最高速度由这一项决定
+      min_speed_theta: 0.0                 # 合角速度下限
+      acc_lim_x: 2.0                       # x 加速度上限，单位 m/s²
+      acc_lim_y: 2.0                       # y 加速度上限
+      acc_lim_theta: 0.0                   # 角加速度上限，与 max_vel_theta 一致置零
+      decel_lim_x: -1.0                    # x 减速度上限（负值）
+      decel_lim_y: -1.0                    # y 减速度上限（负值）
+      decel_lim_theta: 0.0                 # 角减速度上限
+      vx_samples: 15                       # x 速度采样数
+      vy_samples: 15                       # y 速度采样数，与 vx 组合共 225 条候选轨迹
+      vtheta_samples: 1                    # 角速度采样数，固定 1 条（零角速度）
+      sim_time: 1.5                        # 轨迹前向仿真时长，单位秒，越大越保守但响应变钝
+      linear_granularity: 0.05             # 轨迹平移采样间隔，单位米
+      angular_granularity: 0.05            # 轨迹旋转采样间隔，单位弧度
+      transform_tolerance: 0.3             # TF 允许的最大滞后，单位秒
+      xy_goal_tolerance: 0.15              # DWB 内部到点容差，与 goal_checker 保持一致
+      trans_stopped_velocity: 0.05         # 低于该速度视为已停止，单位 m/s
+      short_circuit_trajectory_evaluation: true  # 打分超过当前最优即提前终止，省算力
+      stateful: true                       # 保持到点判定状态
+      # 轨迹打分器组合（Oscillation 用默认权重，防止原地来回振荡）
       critics: [Oscillation, BaseObstacle, GoalAlign, PathAlign, PathDist, GoalDist]
-      BaseObstacle.scale: 0.02
-      PathAlign.scale: 24.0
-      PathAlign.forward_point_distance: 0.1
-      GoalAlign.scale: 18.0
-      GoalAlign.forward_point_distance: 0.1
-      PathDist.scale: 24.0
-      GoalDist.scale: 18.0
+      BaseObstacle.scale: 0.02             # 障碍代价权重，越大越远离障碍；地形图有噪声故取小值
+      PathAlign.scale: 24.0                # 与全局路径方向对齐的权重
+      PathAlign.forward_point_distance: 0.1  # 路径对齐评估用的前视点距离，单位米
+      GoalAlign.scale: 18.0                # 朝向目标点方向的权重
+      GoalAlign.forward_point_distance: 0.1  # 目标对齐评估用的前视点距离，单位米
+      PathDist.scale: 24.0                 # 贴合全局路径的权重，越大越不容易脱离路径
+      GoalDist.scale: 18.0                 # 靠近目标点的权重，越大越激进
 
+# 局部代价地图：供控制器做局部避障，随车滚动
 local_costmap:
   local_costmap:
     ros__parameters:
       use_sim_time: false
-      update_frequency: 10.0
-      publish_frequency: 5.0
+      update_frequency: 10.0               # 地图更新频率，单位 Hz
+      publish_frequency: 5.0               # 可视化发布频率，单位 Hz
       global_frame: odom
       robot_base_frame: base_link_fake
-      transform_tolerance: 0.3
-      rolling_window: true
-      width: 10
-      height: 10
-      resolution: 0.10
-      footprint: "[[-0.30, -0.30], [-0.30, 0.30], [0.30, 0.30], [0.30, -0.30]]"
-      footprint_padding: 0.02
-      track_unknown_space: false
+      transform_tolerance: 0.3             # TF 允许的最大滞后，单位秒
+      rolling_window: true                 # 地图随机器人滚动，无全局地图时必须为 true
+      width: 10                            # 地图宽度，单位米
+      height: 10                           # 地图高度，单位米
+      resolution: 0.10                     # 栅格分辨率，单位米
+      footprint: "[[-0.30, -0.30], [-0.30, 0.30], [0.30, 0.30], [0.30, -0.30]]"  # 0.6×0.6 m 方形轮廓
+      footprint_padding: 0.02              # 轮廓外扩量，单位米
+      track_unknown_space: false           # 未知区域按空闲处理，允许穿越无观测区域
       plugins: [intensity_voxel_layer, inflation_layer]
+      # 地形点云 -> 三维体素 -> 二维代价，带强度筛选
       intensity_voxel_layer:
         plugin: pb_nav2_costmap_2d::IntensityVoxelLayer
         enabled: true
-        footprint_clearing_enabled: true
-        publish_voxel_map: false
-        combination_method: 1
-        mark_threshold: 0
-        origin_z: -1.5
-        z_resolution: 0.2
-        z_voxels: 16
-        unknown_threshold: 15
-        min_obstacle_height: -1.5
-        max_obstacle_height: 1.7
-        min_obstacle_intensity: 0.1
-        max_obstacle_intensity: 2.0
-        observation_sources: terrain_map_ext
-        terrain_map_ext:
-          topic: /terrain_map_ext
+        footprint_clearing_enabled: true   # 清除车体轮廓内的障碍，避免自锁
+        publish_voxel_map: false           # 是否发布体素地图，调试用，较占带宽
+        combination_method: 1              # 与其他层合并方式：0 覆盖，1 取最大，2 取最大但不覆盖未知
+        mark_threshold: 0                  # 一列中标记为障碍所需的最少体素数，0 表示有点即标记
+        origin_z: 0.0                      # 体素网格底面高度，单位米，相对 odom 原点（启动时的 base_link）
+        z_resolution: 0.05                 # 体素高度分辨率，单位米
+        z_voxels: 16                       # 体素层数，与上两项共同覆盖 0.0 ~ 0.8 m
+        unknown_threshold: 15              # 一列中未知体素超过该数则整列视为未知
+        min_obstacle_height: 0.0           # 参与标记的点云最低高度，单位米，低于 odom 原点的点（含地面）直接丢弃
+        max_obstacle_height: 2.0           # 参与标记的点云最高高度，单位米
+        min_obstacle_intensity: 0.1        # 地形点强度下限，强度代表地形高差代价，调大可放过缓坡
+        max_obstacle_intensity: 2.0        # 地形点强度上限，超出视为噪点忽略
+        observation_sources: terrain_map
+        terrain_map:
+          topic: /terrain_map              # 近区地形图，只保留高于地面的点，比 ext 过滤更严
           data_type: PointCloud2
-          marking: true
-          clearing: false
-          observation_persistence: 0.2
-          expected_update_rate: 0.0
-          obstacle_min_range: 0.2
-          obstacle_max_range: 8.0
-          min_obstacle_height: -1.5
-          max_obstacle_height: 1.7
+          sensor_frame: lidar_link         # 必填：点云 frame 是 odom，不填则距离过滤以 odom 原点为中心而非雷达
+          marking: true                    # 用该点云标记障碍
+          clearing: false                  # 不做射线清除，地形图自身已带时间衰减
+          observation_persistence: 0.2     # 观测保留时长，单位秒，0 表示只用最新一帧
+          expected_update_rate: 0.0        # 0 表示不检查话题超时
+          obstacle_min_range: 0.2          # 参与标记的最小距离，单位米，滤掉车体附近点
+          obstacle_max_range: 8.0          # 参与标记的最大距离，单位米，略大于地图半边长
+          min_obstacle_height: 0.0         # 该观测源的高度下限，单位米
+          max_obstacle_height: 2.0         # 该观测源的高度上限，单位米
+      # 障碍膨胀：在障碍周围生成代价梯度
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
-        inflation_radius: 0.45
-        cost_scaling_factor: 4.0
-      always_send_full_costmap: true
+        inflation_radius: 0.2             # 膨胀半径，单位米，略大于车体内切半径 0.30
+        cost_scaling_factor: 4.0           # 代价指数衰减系数，越大代价降得越快、越敢贴近障碍
+      always_send_full_costmap: true       # 每次发布完整地图而非增量，方便 RViz 显示
 
+# 全局代价地图：供 planner 规划整条路径，同样滚动、范围更大、更新更慢
 global_costmap:
   global_costmap:
     ros__parameters:
       use_sim_time: false
-      update_frequency: 3.0
-      publish_frequency: 1.0
+      update_frequency: 3.0                # 地图更新频率，单位 Hz，与 planner 频率对齐
+      publish_frequency: 1.0               # 可视化发布频率，单位 Hz
       global_frame: odom
       robot_base_frame: base_link_fake
-      transform_tolerance: 0.3
-      rolling_window: true
-      width: 30
-      height: 30
-      resolution: 0.10
-      footprint: "[[-0.30, -0.30], [-0.30, 0.30], [0.30, 0.30], [0.30, -0.30]]"
-      footprint_padding: 0.02
-      track_unknown_space: false
+      transform_tolerance: 0.3             # TF 允许的最大滞后，单位秒
+      rolling_window: true                 # 无先验地图，全局层也随车滚动
+      width: 30                            # 地图宽度，单位米，决定可规划的最远目标距离
+      height: 30                           # 地图高度，单位米
+      resolution: 0.10                     # 栅格分辨率，单位米
+      footprint: "[[-0.30, -0.30], [-0.30, 0.30], [0.30, 0.30], [0.30, -0.30]]"  # 0.6×0.6 m 方形轮廓
+      footprint_padding: 0.02              # 轮廓外扩量，单位米
+      track_unknown_space: false           # 未知区域按空闲处理，配合 allow_unknown 允许向未探索区规划
       plugins: [intensity_voxel_layer, inflation_layer]
+      # 参数含义同局部层，仅作用范围和衰减时间不同
       intensity_voxel_layer:
         plugin: pb_nav2_costmap_2d::IntensityVoxelLayer
         enabled: true
-        footprint_clearing_enabled: true
-        publish_voxel_map: false
-        combination_method: 1
-        mark_threshold: 0
-        origin_z: -1.5
-        z_resolution: 0.2
-        z_voxels: 16
-        unknown_threshold: 15
-        min_obstacle_height: -1.5
-        max_obstacle_height: 1.7
-        min_obstacle_intensity: 0.1
-        max_obstacle_intensity: 2.0
+        footprint_clearing_enabled: true   # 清除车体轮廓内的障碍，避免自锁
+        publish_voxel_map: false           # 是否发布体素地图，调试用
+        combination_method: 1              # 与其他层合并方式：0 覆盖，1 取最大，2 取最大但不覆盖未知
+        mark_threshold: 0                  # 一列中标记为障碍所需的最少体素数
+        origin_z: 0.0                      # 体素网格底面高度，单位米，相对 odom 原点
+        z_resolution: 0.05                 # 体素高度分辨率，单位米
+        z_voxels: 16                       # 体素层数，覆盖 0.0 ~ 0.8 m
+        unknown_threshold: 15              # 一列中未知体素超过该数则整列视为未知
+        min_obstacle_height: 0.0           # 参与标记的点云最低高度，单位米，低于 odom 原点的点（含地面）直接丢弃
+        max_obstacle_height: 2.0           # 参与标记的点云最高高度，单位米
+        min_obstacle_intensity: 0.1        # 地形点强度下限
+        max_obstacle_intensity: 2.0        # 地形点强度上限
         observation_sources: terrain_map_ext
         terrain_map_ext:
           topic: /terrain_map_ext
           data_type: PointCloud2
-          marking: true
-          clearing: false
-          observation_persistence: 0.5
-          expected_update_rate: 0.0
-          obstacle_min_range: 0.2
-          obstacle_max_range: 25.0
-          min_obstacle_height: -1.5
-          max_obstacle_height: 1.7
+          sensor_frame: lidar_link         # 必填：点云 frame 是 odom，不填则距离过滤以 odom 原点为中心而非雷达
+          marking: true                    # 用该点云标记障碍
+          clearing: false                  # 不做射线清除
+          observation_persistence: 0.5     # 观测保留时长，单位秒，比局部层更长以稳定全局路径
+          expected_update_rate: 0.0        # 0 表示不检查话题超时
+          obstacle_min_range: 0.2          # 参与标记的最小距离，单位米
+          obstacle_max_range: 25.0         # 参与标记的最大距离，单位米，接近地图半边长 15 m 的对角范围
+          min_obstacle_height: 0.0         # 该观测源的高度下限，单位米
+          max_obstacle_height: 2.0         # 该观测源的高度上限，单位米
       inflation_layer:
         plugin: nav2_costmap_2d::InflationLayer
-        inflation_radius: 0.45
-        cost_scaling_factor: 4.0
-      always_send_full_costmap: true
+        inflation_radius: 0.20             # 膨胀半径，单位米，小于车体内切半径 0.30，全局路径会贴近障碍，靠局部层兜底
+        cost_scaling_factor: 4.0           # 代价指数衰减系数
+      always_send_full_costmap: true       # 每次发布完整地图而非增量
 
+# 全局规划器：在全局代价地图上搜索无碰撞路径
 planner_server:
   ros__parameters:
     use_sim_time: false
-    expected_planner_frequency: 3.0
+    expected_planner_frequency: 3.0        # 期望重规划频率，单位 Hz，实际慢于此值会打印告警
     planner_plugins: [GridBased]
     GridBased:
       plugin: nav2_navfn_planner/NavfnPlanner
-      tolerance: 0.3
-      use_astar: true
-      allow_unknown: true
+      tolerance: 0.3                       # 目标点不可达时，允许在该半径内取替代终点，单位米
+      use_astar: true                      # true 用 A*（更快），false 用 Dijkstra（路径更平滑）
+      allow_unknown: true                  # 允许穿越未知区域，滚动地图边缘之外才能规划
 
+# 路径平滑服务：对规划出的折线做平滑，行为树中可选调用
 smoother_server:
   ros__parameters:
     use_sim_time: false
     smoother_plugins: [simple_smoother]
     simple_smoother:
       plugin: nav2_smoother::SimpleSmoother
-      tolerance: 1.0e-10
-      max_its: 1000
-      do_refinement: true
+      tolerance: 1.0e-10                   # 迭代收敛阈值，越小越平滑但耗时更长
+      max_its: 1000                        # 最大迭代次数
+      do_refinement: true                  # 收敛后再做一轮精修
 
+# 恢复行为服务：导航卡住时执行，只启用后退和等待（自旋由 /cmd_spin 负责，不在此处）
 behavior_server:
   ros__parameters:
     use_sim_time: false
-    costmap_topic: local_costmap/costmap_raw
-    footprint_topic: local_costmap/published_footprint
-    cycle_frequency: 10.0
+    costmap_topic: local_costmap/costmap_raw            # 恢复动作做碰撞检查用的代价地图
+    footprint_topic: local_costmap/published_footprint  # 碰撞检查用的车体轮廓
+    cycle_frequency: 10.0                  # 恢复行为执行频率，单位 Hz
     behavior_plugins: [backup, wait]
     backup:
-      plugin: nav2_behaviors/BackUp
+      plugin: nav2_behaviors/BackUp        # 沿 -x 后退一段距离
     wait:
-      plugin: nav2_behaviors/Wait
+      plugin: nav2_behaviors/Wait          # 原地等待，等动态障碍离开
     global_frame: odom
     robot_base_frame: base_link_fake
-    transform_tolerance: 0.3
-    simulate_ahead_time: 2.0
+    transform_tolerance: 0.3               # TF 允许的最大滞后，单位秒
+    simulate_ahead_time: 2.0               # 恢复动作前向碰撞检查时长，单位秒
 
+# 航点跟随：按顺序把多个目标点交给 bt_navigator
 waypoint_follower:
   ros__parameters:
     use_sim_time: false
-    loop_rate: 20
-    stop_on_failure: false
+    loop_rate: 20                          # 状态轮询频率，单位 Hz
+    stop_on_failure: false                 # 单个航点失败后继续跑后面的航点
     waypoint_task_executor_plugin: wait_at_waypoint
     wait_at_waypoint:
       plugin: nav2_waypoint_follower::WaitAtWaypoint
       enabled: true
-      waypoint_pause_duration: 200
+      waypoint_pause_duration: 200         # 到达每个航点后的停留时长，单位毫秒
 
+# 速度平滑器：/cmd_vel_nav -> /cmd_vel_nav_smoothed，限加速度并做超时保护
 velocity_smoother:
   ros__parameters:
     use_sim_time: false
-    smoothing_frequency: 20.0
-    scale_velocities: false
-    feedback: OPEN_LOOP
-    max_velocity: [0.4, 0.4, 0.0]
-    min_velocity: [-0.4, -0.4, 0.0]
-    max_accel: [1.0, 1.0, 0.0]
-    max_decel: [-1.0, -1.0, 0.0]
-    odom_topic: /Odometry
-    odom_duration: 0.1
-    deadband_velocity: [0.0, 0.0, 0.0]
-    velocity_timeout: 0.5
+    smoothing_frequency: 20.0              # 输出频率，单位 Hz，与 controller_frequency 一致
+    scale_velocities: false                # 超限时不等比缩放各轴，只逐轴裁剪
+    feedback: OPEN_LOOP                    # 以上一次输出作为当前速度，不依赖里程计反馈
+    max_velocity: [0.8, 0.8, 0.0]          # [x, y, theta] 输出速度上限，与 DWB 单轴上限保持一致
+    min_velocity: [-0.8, -0.8, 0.0]        # [x, y, theta] 输出速度下限
+    max_accel: [1.0, 1.0, 0.0]             # [x, y, theta] 加速度上限，单位 m/s²、rad/s²
+    max_decel: [-1.0, -1.0, 0.0]           # [x, y, theta] 减速度上限（负值）
+    odom_topic: /Odometry                  # 仅 CLOSED_LOOP 模式使用
+    odom_duration: 0.1                     # 里程计反馈缓存时长，单位秒，仅 CLOSED_LOOP 使用
+    deadband_velocity: [0.0, 0.0, 0.0]     # 输出死区，低于该值直接归零，用于抑制底盘抖动
+    velocity_timeout: 0.5                  # 超过该时间未收到新指令则输出零速，单位秒
+

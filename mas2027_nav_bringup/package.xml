@@ -29,6 +29,7 @@
   <exec_depend>sensor_scan_generation</exec_depend>
   <exec_depend>small_point_lio</exec_depend>
   <exec_depend>fake_vel_transform</exec_depend>
+  <exec_depend>ros2_comm</exec_depend>
   <exec_depend>rviz2</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>

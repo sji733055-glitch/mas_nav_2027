@@ -41,6 +41,7 @@ def generate_launch_description():
     rviz_config_file = LaunchConfiguration("rviz_config_file")
     use_robot_state_pub = LaunchConfiguration("use_robot_state_pub")
     use_fake_vel_transform = LaunchConfiguration("use_fake_vel_transform")
+    use_ros2_comm = LaunchConfiguration("use_ros2_comm")
     use_nav2 = LaunchConfiguration("use_nav2")
     use_terrain_analysis = LaunchConfiguration("use_terrain_analysis")
     use_rviz = LaunchConfiguration("use_rviz")
@@ -82,6 +83,11 @@ def generate_launch_description():
         "use_fake_vel_transform",
         default_value="True",
         description="Publish base_link_fake and transform Nav2 velocity into base_link",
+    )
+    declare_use_ros2_comm_cmd = DeclareLaunchArgument(
+        "use_ros2_comm",
+        default_value="True",
+        description="Send /cmd_vel to the lower controller through ros2_comm",
     )
 
     declare_use_nav2_cmd = DeclareLaunchArgument(
@@ -156,6 +162,7 @@ def generate_launch_description():
             "perception_params_file": small_point_lio_params_file,
             "use_terrain_analysis": use_terrain_analysis,
             "use_fake_vel_transform": use_fake_vel_transform,
+            "use_ros2_comm": use_ros2_comm,
         }.items(),
     )
 
@@ -182,6 +189,7 @@ def generate_launch_description():
     ld.add_action(declare_use_nav2_cmd)
     ld.add_action(declare_use_terrain_analysis_cmd)
     ld.add_action(declare_use_fake_vel_transform_cmd)
+    ld.add_action(declare_use_ros2_comm_cmd)
     ld.add_action(declare_use_rviz_cmd)
 
     # Add the actions to launch all of the navigation nodes

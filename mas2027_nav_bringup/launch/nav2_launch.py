@@ -30,6 +30,7 @@ def generate_launch_description():
     perception_params_file = LaunchConfiguration("perception_params_file")
     use_terrain_analysis = LaunchConfiguration("use_terrain_analysis")
     use_fake_vel_transform = LaunchConfiguration("use_fake_vel_transform")
+    use_ros2_comm = LaunchConfiguration("use_ros2_comm")
 
     configured_nav2_params = ParameterFile(
         RewrittenYaml(
@@ -100,6 +101,11 @@ def generate_launch_description():
         default_value="True",
         description="Start base_link_fake TF and velocity conversion",
     )
+    declare_use_ros2_comm = DeclareLaunchArgument(
+        "use_ros2_comm",
+        default_value="True",
+        description="Send /cmd_vel to the lower controller through ros2_comm",
+    )
 
     terrain_analysis = Node(
         package="terrain_analysis",
@@ -135,6 +141,15 @@ def generate_launch_description():
         output="screen",
         condition=IfCondition(use_fake_vel_transform),
         parameters=[configured_perception_params],
+    )
+
+    ros2_comm = Node(
+        package="ros2_comm",
+        executable="ros2_comm_node",
+        name="ros2_comm_node",
+        output="screen",
+        emulate_tty=True,
+        condition=IfCondition(use_ros2_comm),
     )
 
     tf_remappings = [("/tf", "tf"), ("/tf_static", "tf_static")]
@@ -263,9 +278,11 @@ def generate_launch_description():
             declare_perception_params_file,
             declare_use_terrain_analysis,
             declare_use_fake_vel_transform,
+            declare_use_ros2_comm,
             terrain_analysis,
             terrain_analysis_ext,
             fake_vel_transform,
+            ros2_comm,
             controller_server,
             smoother_server,
             planner_server,

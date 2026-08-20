@@ -93,14 +93,14 @@ fake_vel_transform:
 terrainAnalysis:
   ros__parameters:
     scanVoxelSize: 0.05
-    decayTime: 1.0
-    noDecayDis: 1.75
-    clearingDis: 8.0
-    useSorting: true
-    quantileZ: 0.25
-    considerDrop: false
+    decayTime: 0.5
+    noDecayDis: 0.0
+    clearingDis: 0.0
+    useSorting: true          # 取分位点作为地面高度，坡面上正负高差可相互抵消，能上坡；不要与 considerDrop 同开
+    quantileZ: 0.2
+    considerDrop: false       # 开启则对地面高差取绝对值，凹地也算障碍
     limitGroundLift: false
-    maxGroundLift: 0.15
+    maxGroundLift: 0.3
     clearDyObs: true
     minDyObsDis: 0.3
     minDyObsAngle: 0.0
@@ -112,28 +112,28 @@ terrainAnalysis:
     noDataObstacle: false
     noDataBlockSkipNum: 0
     minBlockPointNum: 10
-    vehicleHeight: 1.5        # 保留的最大离地高度；按机器人可通行净高设置，过小会删掉高障碍，过大会保留顶棚
+    vehicleHeight: 0.5        # 保留的最大离地高度；按机器人可通行净高设置，过小会删掉高障碍，过大会保留顶棚
     voxelPointUpdateThre: 100
-    voxelTimeUpdateThre: 2.0
-    minRelZ: -1.5             # 相对 base_link 的最低点；建议设为 ground_rel_z 再减 0.1~0.2 m 裕量
-    maxRelZ: 0.3              # 相对 base_link 的最高点；至少覆盖需要检测的最高障碍，过大会引入车体或顶棚
+    voxelTimeUpdateThre: 1.0
+    minRelZ: -1.0             # 相对 base_link 的最低点；建议设为 ground_rel_z 再减 0.1~0.2 m 裕量
+    maxRelZ: 0.5              # 相对 base_link 的最高点；至少覆盖需要检测的最高障碍，过大会引入车体或顶棚
     disRatioZ: 0.2            # 随水平距离放宽高度窗口的比例；斜坡漏点时增大，顶棚/噪点增多时减小
 
 # 扩展地形分析参数
 terrainAnalysisExt:
   ros__parameters:
     scanVoxelSize: 0.1
-    decayTime: 4.0
+    decayTime: 0.2
     noDecayDis: 0.0
-    clearingDis: 30.0
+    clearingDis: 20.0
     useSorting: true
-    quantileZ: 0.1
-    vehicleHeight: 1.5        # 扩展区域保留的最大离地高度，应与局部地图的 vehicleHeight 保持一致
+    quantileZ: 0.2
+    vehicleHeight: 1.0        # 扩展区域保留的最大离地高度，应与局部地图的 vehicleHeight 保持一致
     voxelPointUpdateThre: 100
     voxelTimeUpdateThre: 2.0
-    lowerBoundZ: -2.5         # 相对 base_link 的最低点；以 ground_rel_z 为中心向下留 0.1~0.2 m 裕量
-    upperBoundZ: 1.0          # 相对 base_link 的最高点；按远处需检测的障碍高度设置，过大会纳入顶棚
-    disRatioZ: 0.1            # 远距离高度窗口扩张比例；斜坡漏点时增大，远处噪点过多时减小
+    lowerBoundZ: -1.5         # 相对 base_link 的最低点；以 ground_rel_z 为中心向下留 0.1~0.2 m 裕量
+    upperBoundZ: 0.5          # 相对 base_link 的最高点；按远处需检测的障碍高度设置，过大会纳入顶棚
+    disRatioZ: 0.2            # 远距离高度窗口扩张比例；斜坡漏点时增大，远处噪点过多时减小
     checkTerrainConn: false   # 顶棚误判明显时开启；开启后用地面高差连通性筛除悬空区域
     terrainConnThre: 0.5      # 相邻地面允许的最大高差；坡面被断开时增大，顶棚连入地面时减小
     terrainUnderVehicle: -0.75 # 车下无点时的地面高度，应设为实测 ground_rel_z，而不是固定使用雷达安装高度
