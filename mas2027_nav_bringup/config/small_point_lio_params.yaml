@@ -83,6 +83,11 @@ fake_vel_transform:
     cmd_spin_topic: /cmd_spin                         # 叠加到底盘 angular.z 的独立自旋速度话题
     input_cmd_vel_topic: /cmd_vel_nav_smoothed        # velocity_smoother 输出，表达在 base_link_fake 中
     output_cmd_vel_topic: /cmd_vel                    # 转换到 base_link 后发送给底盘控制器
+    # 给 Nav2 用的里程计：位姿与 /Odometry 相同，twist 旋转到 base_link_fake 轴系。
+    # Nav2 不会变换 odom twist，直接当作 robot_base_frame(base_link_fake) 中的当前速度，
+    # 而 /Odometry 的 twist 在随车体转动的 base_link 中，两者相差一个车体 yaw，
+    # 不修正会让 DWB 的可达速度窗口锚错方向，速度越高横向跑偏越大。
+    output_odom_topic: /Odometry_fake
     init_spin_speed: 0.0                              # 未收到 /cmd_spin 时的默认自旋角速度，单位 rad/s
 
 # 局部地形分析参数

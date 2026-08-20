@@ -87,7 +87,7 @@ def generate_launch_description():
                         small_point_lio_params_file
                     ),
                     "use_robot_state_pub": use_robot_state_pub,
-                    "use_nav2": "False",
+                    "use_nav2": "True",
                     "use_rviz": "False",
                 }.items(),
             )

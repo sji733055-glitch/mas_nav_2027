@@ -41,6 +41,7 @@ private:
     const nav_msgs::msg::Odometry::ConstSharedPtr & odom,
     const nav_msgs::msg::Path::ConstSharedPtr & local_plan);
   void odometryCallback(const nav_msgs::msg::Odometry::ConstSharedPtr & msg);
+  void publishFakeOdometry(const nav_msgs::msg::Odometry::ConstSharedPtr & msg);
   void localPlanCallback(const nav_msgs::msg::Path::ConstSharedPtr & msg);
   void cmdVelCallback(const geometry_msgs::msg::Twist::SharedPtr msg);
   void cmdSpinCallback(example_interfaces::msg::Float32::SharedPtr msg);
@@ -58,6 +59,7 @@ private:
   std::unique_ptr<message_filters::Synchronizer<SyncPolicy>> sync_;
 
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_chassis_pub_;
+  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_fake_pub_;
 
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 
@@ -70,6 +72,7 @@ private:
   std::string cmd_spin_topic_;
   std::string input_cmd_vel_topic_;
   std::string output_cmd_vel_topic_;
+  std::string output_odom_topic_;
   float spin_speed_;
 
   std::mutex cmd_vel_mutex_;

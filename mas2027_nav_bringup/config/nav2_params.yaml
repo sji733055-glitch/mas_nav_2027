@@ -1,7 +1,7 @@
 # Nav2 局部导航参数（不加载全局地图，全部在里程计坐标系下运行）
 # 数据输入：
 #   TF：odom -> base_link -> base_link_fake
-#   里程计：/Odometry（small_point_lio 发布）
+#   里程计：/Odometry_fake（fake_vel_transform 转发 /Odometry，twist 旋到 base_link_fake 轴系）
 #   障碍物：局部图用 /terrain_map（terrainAnalysis，近区过滤更严），全局图用 /terrain_map_ext（terrainAnalysisExt，覆盖更远）
 # 速度链路：
 #   controller_server -> /cmd_vel_nav -> velocity_smoother -> /cmd_vel_nav_smoothed
@@ -15,7 +15,7 @@ bt_navigator:
     use_sim_time: false
     global_frame: odom                     # 无全局地图，导航参考系直接用里程计坐标系
     robot_base_frame: base_link_fake       # yaw 固定的机器人坐标系，让规划与车体朝向解耦
-    odom_topic: /Odometry                  # 速度反馈来源
+    odom_topic: /Odometry_fake             # 速度反馈来源，twist 已旋到 base_link_fake 轴系
     transform_tolerance: 0.3               # TF 允许的最大滞后，单位秒
     bt_loop_duration: 10                   # 行为树 tick 周期，单位毫秒
     default_server_timeout: 20             # 行为树节点等待 action 服务响应的超时，单位毫秒
@@ -52,7 +52,10 @@ bt_navigator_navigate_through_poses_rclcpp_node:
 controller_server:
   ros__parameters:
     use_sim_time: false
-    odom_topic: /Odometry
+    # 必须用 /Odometry_fake：Nav2 不变换 odom twist，直接当作 robot_base_frame(base_link_fake)
+    # 中的当前速度。而 /Odometry 的 twist 在随车体转动的 base_link 中，两者相差一个车体 yaw，
+    # 用错会把 DWB 的可达速度窗口锚在错误方向上，表现为速度越高横向跑偏越大。
+    odom_topic: /Odometry_fake
     controller_frequency: 20.0             # 控制周期，单位 Hz，需与局部代价地图更新率匹配
     failure_tolerance: 0.5                 # 允许连续算不出有效速度的时长，单位秒，超时后判定失败
     min_x_velocity_threshold: 0.001        # 里程计 x 速度低于该值按 0 处理，滤除静止噪声
@@ -86,10 +89,13 @@ controller_server:
       max_vel_y: 1.0                       # y 速度上限
       max_vel_theta: 0.0                   # 自旋不由 Nav2 控制，角速度恒为 0
       min_speed_xy: 0.0                    # 合速度下限，0 表示允许停下
-      max_speed_xy: 0.55                   # 合速度上限，低于单轴上限 1.0，实际最高速度由这一项决定
+      max_speed_xy: 1.00                   # 合速度上限，实际最高速度由这一项决定
       min_speed_theta: 0.0                 # 合角速度下限
-      acc_lim_x: 2.0                       # x 加速度上限，单位 m/s²
-      acc_lim_y: 2.0                       # y 加速度上限
+      # 加速度上限必须与 velocity_smoother 的 max_accel 一致：DWB 的可达速度窗口是
+      # 当前速度 ± acc_lim × 控制周期，填得比实际能力大会让它选到执行不出来的速度。
+      # 想提高响应就同时调大这里和 velocity_smoother 的 max_accel。
+      acc_lim_x: 1.0                       # x 加速度上限，单位 m/s²
+      acc_lim_y: 1.0                       # y 加速度上限
       acc_lim_theta: 0.0                   # 角加速度上限，与 max_vel_theta 一致置零
       decel_lim_x: -1.0                    # x 减速度上限（负值）
       decel_lim_y: -1.0                    # y 减速度上限（负值）
@@ -279,13 +285,13 @@ velocity_smoother:
   ros__parameters:
     use_sim_time: false
     smoothing_frequency: 20.0              # 输出频率，单位 Hz，与 controller_frequency 一致
-    scale_velocities: false                # 超限时不等比缩放各轴，只逐轴裁剪
+    scale_velocities: true                 # 超限时等比缩放各轴，逐轴裁剪会改变速度方向、导致跑偏
     feedback: OPEN_LOOP                    # 以上一次输出作为当前速度，不依赖里程计反馈
-    max_velocity: [0.8, 0.8, 0.0]          # [x, y, theta] 输出速度上限，与 DWB 单轴上限保持一致
-    min_velocity: [-0.8, -0.8, 0.0]        # [x, y, theta] 输出速度下限
+    max_velocity: [1.0, 1.0, 0.0]          # [x, y, theta] 输出速度上限，与 DWB 单轴上限一致，避免裁剪改变方向
+    min_velocity: [-1.0, -1.0, 0.0]        # [x, y, theta] 输出速度下限
     max_accel: [1.0, 1.0, 0.0]             # [x, y, theta] 加速度上限，单位 m/s²、rad/s²
     max_decel: [-1.0, -1.0, 0.0]           # [x, y, theta] 减速度上限（负值）
-    odom_topic: /Odometry                  # 仅 CLOSED_LOOP 模式使用
+    odom_topic: /Odometry_fake             # 仅 CLOSED_LOOP 模式使用；与控制器同源，twist 在 base_link_fake 轴系
     odom_duration: 0.1                     # 里程计反馈缓存时长，单位秒，仅 CLOSED_LOOP 使用
     deadband_velocity: [0.0, 0.0, 0.0]     # 输出死区，低于该值直接归零，用于抑制底盘抖动
     velocity_timeout: 0.5                  # 超过该时间未收到新指令则输出零速，单位秒

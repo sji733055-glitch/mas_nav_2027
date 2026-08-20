@@ -35,6 +35,7 @@ FakeVelTransform::FakeVelTransform(const rclcpp::NodeOptions & options)
   this->declare_parameter<std::string>("cmd_spin_topic", "cmd_spin");
   this->declare_parameter<std::string>("input_cmd_vel_topic", "");
   this->declare_parameter<std::string>("output_cmd_vel_topic", "");
+  this->declare_parameter<std::string>("output_odom_topic", "");
   this->declare_parameter<float>("init_spin_speed", 0.0);
 
   this->get_parameter("robot_base_frame", robot_base_frame_);
@@ -44,12 +45,16 @@ FakeVelTransform::FakeVelTransform(const rclcpp::NodeOptions & options)
   this->get_parameter("cmd_spin_topic", cmd_spin_topic_);
   this->get_parameter("input_cmd_vel_topic", input_cmd_vel_topic_);
   this->get_parameter("output_cmd_vel_topic", output_cmd_vel_topic_);
+  this->get_parameter("output_odom_topic", output_odom_topic_);
   this->get_parameter("init_spin_speed", spin_speed_);
 
   tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
   cmd_vel_chassis_pub_ =
     this->create_publisher<geometry_msgs::msg::Twist>(output_cmd_vel_topic_, 1);
+  if (!output_odom_topic_.empty()) {
+    odom_fake_pub_ = this->create_publisher<nav_msgs::msg::Odometry>(output_odom_topic_, 10);
+  }
 
   cmd_spin_sub_ = this->create_subscription<example_interfaces::msg::Float32>(
     cmd_spin_topic_, 1, std::bind(&FakeVelTransform::cmdSpinCallback, this, std::placeholders::_1));
@@ -84,10 +89,36 @@ void FakeVelTransform::cmdSpinCallback(const example_interfaces::msg::Float32::S
 
 void FakeVelTransform::odometryCallback(const nav_msgs::msg::Odometry::ConstSharedPtr & msg)
 {
+  publishFakeOdometry(msg);
+
   // NOTE: Haven't synced with local_plan
   if ((rclcpp::Clock().now() - last_controller_activate_time_).seconds() > CONTROLLER_TIMEOUT) {
     current_robot_base_angle_ = tf2::getYaw(msg->pose.pose.orientation);
   }
+}
+
+// Nav2 把 odom twist 直接当作 `robot_base_frame`（即 fake_robot_base_frame）中的当前速度使用，
+// 不做任何坐标变换。而上游里程计按 REP-105 把 twist 表达在随车体转动的 robot_base_frame 中，
+// 两者相差一个车体 yaw。若不修正，DWB 的可达速度窗口会被锚在错误的方向上，
+// 表现为速度越高、横向偏移越大的持续跑偏。这里把 twist 旋到 fake_robot_base_frame 再发给 Nav2。
+void FakeVelTransform::publishFakeOdometry(const nav_msgs::msg::Odometry::ConstSharedPtr & msg)
+{
+  if (!odom_fake_pub_) {
+    return;
+  }
+  const double yaw = tf2::getYaw(msg->pose.pose.orientation);
+  nav_msgs::msg::Odometry out = *msg;
+  out.child_frame_id = fake_robot_base_frame_;
+  // fake_robot_base_frame 与 robot_base_frame 相差 Rz(-yaw)，故 v_fake = Rz(+yaw) * v_base
+  out.twist.twist.linear.x =
+    msg->twist.twist.linear.x * cos(yaw) - msg->twist.twist.linear.y * sin(yaw);
+  out.twist.twist.linear.y =
+    msg->twist.twist.linear.x * sin(yaw) + msg->twist.twist.linear.y * cos(yaw);
+  // fake_robot_base_frame 的 yaw 恒定，相对 odom 没有角速度
+  out.twist.twist.angular.x = 0.0;
+  out.twist.twist.angular.y = 0.0;
+  out.twist.twist.angular.z = 0.0;
+  odom_fake_pub_->publish(out);
 }
 
 void FakeVelTransform::cmdVelCallback(const geometry_msgs::msg::Twist::SharedPtr msg)
