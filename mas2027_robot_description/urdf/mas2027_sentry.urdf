@@ -19,10 +19,19 @@
     </collision>
   </link>
 
-<joint name="base_footprint_to_base_link" type="fixed">
-  <parent link="base_footprint"/>
-  <child link="base_link"/>
-  <origin xyz="0 0 0.1" rpy="0 0 0"/>
+<!-- base_link 必须是 URDF 的根：里程计 small_point_lio 在 /tf 上发布
+     odom -> base_link。如果这里让 base_footprint 当父级，robot_state_publisher
+     就会在 /tf_static 上再发一条 base_footprint -> base_link，base_link 于是有了
+     两个父级。TF2 的树里每个 frame 只能有一个父级，冲突的结果是整棵树裂成
+     两棵互不相连的子树（tf2_echo 报 "Tf has two or more unconnected trees"），
+     RViz 的 Fixed Frame 设成 odom 时就什么都显示不出来，Nav2 的 costmap 也起不来。
+     所以把关系反过来：base_footprint 挂在 base_link 下面，z 取原来的相反数，
+     几何关系不变（base_footprint 仍在 base_link 下方 0.1 m 的地面上）。
+     base_footprint 目前只被 RViz 的 RobotModel/TF 显示用到，没有功能代码依赖它。 -->
+<joint name="base_link_to_base_footprint" type="fixed">
+  <parent link="base_link"/>
+  <child link="base_footprint"/>
+  <origin xyz="0 0 -0.1" rpy="0 0 0"/>
 </joint>
 
   <!-- MID-360 LiDAR Link -->

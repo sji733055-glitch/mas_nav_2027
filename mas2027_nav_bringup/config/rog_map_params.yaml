@@ -1,0 +1,196 @@
+# ROG-Map 参数。节点名 rog_map，参数前缀同样是 rog_map
+# （宿主节点通过 Config::loadFromRosNode(node, "rog_map") 读取）。
+#
+# !! 这份只给独立 rog_map 节点用（use_rog_map_standalone:=True，默认不启动）!!
+# 跑 nav2 时 ROG-Map 由 planner_server 里的 MincoPlanner 插件持有，读的是
+# nav2_params.yaml 的 planner_server.ros__parameters.MincoPlanner.rog_map 段。
+# 两处取值必须一致：改参数请改 nav2_params.yaml 那一份（导航实际生效），并同步回这里。
+# 这个约束有自动检查，不靠人记：test/test_rog_map_params_consistency.py 会逐叶子比对，
+# 漂移就让 `colcon test --packages-select mas2027_nav_bringup` 失败并报出具体键名。
+# 两份不能合并成一份——前者是节点级参数文件，后者必须嵌在 planner_server 节点下的
+# MincoPlanner 插件名之后，ROS 2 参数文件没有包含/引用语法，RewrittenYaml 也只能
+# 改标量、不能拼接嵌套段。
+#
+# 来源：navi_minco_bit 的 src/navigation/navi2_bringup/params/sentry1.yaml 中
+# minco_planner.ros__parameters.rog_map 段，逐行搬运并降一级缩进，注释保持原样。
+# 按本仓库链路改动的项（其余全部保持上游取值）：
+#   frame_id / visualization.frame_id  camera_init            -> odom
+#   ros_callback.odom_topic            /aft_mapped_to_init    -> /Odometry
+#   ros_callback.cloud_topic           /cloud_registered_full -> /cloud_registered
+#   map_sliding.center_offset_enable   true                   -> false
+#   projection.prior_map.enable        true                   -> false
+#
+# 说明：
+# - odom / cloud 均来自 small_point_lio，两者都在 odom 坐标系下发布。
+# - center_offset 是雷达安装偏置补偿，属于单车标定量，本车未标定前置零并关闭。
+# - prior_map 是 Nav2 PGM 二维静态先验融合，本仓库尚未接入，需要时把 enable 置 true
+#   并把 yaml_path 指向 mas2027_nav_bringup/map/ 下的地图 yaml。
+rog_map:
+  ros__parameters:
+    rog_map:
+      frame_id: odom
+      resolution: 0.05
+      # [基础地图][m/cell] 三维膨胀地图分辨率；通常与 resolution 保持一致，过细增加膨胀查询计算量，过粗会让碰撞边界变粗糙。
+      inflation_resolution: 0.05
+      map_size: [10.0, 10.0, 1.5]
+      fix_map_origin: [0.0, 0.0, 0.0]
+
+      map_sliding:
+        enable: true
+        # [map_sliding][m] 触发地图滑动的位移阈值；过小会频繁滑动并带来计算抖动，过大可能让机器人靠近局部地图边缘。
+        threshold: 0.2
+        center_offset_enable: false
+        center_offset: [0.0, 0.0, 0.0]
+
+      ros_callback:
+        enable: true
+        cloud_topic: /cloud_registered
+        odom_topic: /Odometry
+        odom_timeout: 0.08
+        update_period_ms: 20
+
+      raycasting:
+        enable: true
+        # [raycasting][帧] 每批处理点云帧数；调大可攒批减少调度开销，但会增加地图更新延迟。
+        batch_update_size: 1
+        # [raycasting][m,m] 射线有效距离 [min,max]；min 过大会忽略近处点，max 过大会增加计算量并可能引入远处噪声。
+        ray_range: [0.03, 10.0]
+        # [raycasting][m,m,m] 每次局部更新盒尺寸；调大覆盖更多点但 raycasting 和 dirty column 数量上升。
+        local_update_box: [10.0, 10.0, 2.5]
+        # [raycasting][概率] unknown 判断阈值相关参数；影响 UNKNOWN/FREE/OCCUPIED 判定，进而影响 projection layer。
+        unk_thresh: 0.70
+        p_hit: 0.9
+        p_miss: 0.45
+        p_min: 0.12
+        p_max: 0.97
+        p_occ: 0.85
+        p_free: 0.499
+        # [raycasting/performance][bool] raycast 并行开关；会被 performance.parallel_raycast_enable 后加载覆盖，影响 CPU 占用和更新延迟。
+        parallel_enable: false
+        # [raycasting/performance][线程] raycast 线程数；不宜超过可用 CPU 核数，过大可能因竞争导致抖动。
+        num_threads: 4
+
+      decay:
+        enable: true
+        # [decay][s] 最后一次 hit 后保持 occupied 的最小时间；过短障碍闪烁，过长动态障碍残留。
+        keep_time: 0.8
+        # [decay][s] 最后一次 hit 后强制衰减到 free 的最大时间；必须大于 keep_time。
+        clear_time: 1.2
+        # [decay][bool] 只维护活跃 cell 衰减列表；开启通常降低计算量，若列表维护异常会影响动态清除完整性。
+        active_list_enable: false
+
+      projection:
+        enable: true
+
+        # 标准 Nav2 YAML/PGM 静态先验；启用后只增加二维硬障碍，不清除在线障碍。
+        prior_map:
+          enable: false
+          yaml_path: ""
+          # 留空时使用 YAML 的 image 字段，并相对 YAML 所在目录解析。
+          pgm_path: ""
+          frame_id: map
+
+        # [absolute Z coordinate, m]
+        # ROGMap frame 中参与单柱扫描的绝对 Z 下界。
+        # 这是坐标值，不是地面相对高度，也不是高度差。
+        scan_z_min_abs: -0.20
+
+        # [absolute Z coordinate, m]
+        # ROGMap frame 中参与单柱扫描的绝对 Z 上界。
+        # 这是坐标值，不是障碍高度，也不是高度差。
+        scan_z_max_abs: 1.5
+
+        # UNKNOWN 是否作为 ESDF 障碍。
+        unknown_as_occupied: false
+
+        # 每个 XY 柱中 KNOWN_FREE + OCCUPIED 的最小观测体素数。
+        min_observed_voxels: 2
+
+        # [vertical height difference, m]
+        # 同一 XY 柱中最高与最低占据体素的垂直高度差 H。
+        # 不超过该值时，分类为地面或坡面薄表面。
+        # 这是差值，不是 ROGMap frame 中的绝对 Z 坐标。
+        surface_height_delta_max: 0.2
+
+        # [vertical height difference, m]
+        # 判定竖直墙所需的最小单柱垂直高度差 H。
+        # 这是差值，不是绝对 Z 坐标。
+        wall_height_delta_min: 0.40
+
+        # [dimensionless ratio, 0~1]
+        # H 区间内的垂直占据率达到该值时，视为连续竖直墙。
+        wall_occupancy_ratio_min: 0.80
+
+        # [vertical height difference, m]
+        # 可通行隧道所需的最小上下表面高度差。
+        # 应包含机器人实际高度和安全余量。
+        # 这是差值，不是绝对 Z 坐标。
+        tunnel_height_delta_min: 0.25
+
+        # [vertical height difference, m]
+        # 当前 RM 场景中允许识别为目标隧道的最大上下表面高度差。
+        # 这是差值，不是绝对 Z 坐标。
+        tunnel_height_delta_max: 0.40
+
+        # [dimensionless ratio, 0~1]
+        # 隧道上下表面之间的最大垂直占据率。
+        tunnel_occupancy_ratio_max: 0.45
+
+        # PASSABLE 在 value layer 中的代价值。
+        passable_cost: 50
+
+        # PASSABLE 是否在 value layer 中写为 FREE。
+        # PASSABLE 的 ESDF mask 始终为 1。
+        passable_as_free: true
+
+        hysteresis_enable: false
+        hysteresis_count: 2
+        # Projection 二维障碍退出原始 OCCUPIED 后的保持时间，单位为秒。
+        obstacle_hold_time: 1.5
+
+        mask_filter_en: true
+        fill_occ_min: 4
+        denoise_occ_max: 0
+      field:
+        enable: true
+        inflation_radius: 0.0
+        # [field][m] ESDF 正向最大截断距离；调大提供更远梯度但代价有限，过小会让远离障碍区域梯度变少。
+        max_distance: 6.0
+        # [field][m] ESDF 负向最小截断距离；控制障碍内部负距离下限，影响优化代价范围。
+        min_distance: -3.0
+        clamp_distance: true
+        # [field][枚举] 插值方式 bilinear/quadratic；quadratic 梯度更平滑，边界邻域不足时会回退到 bilinear。
+        interpolation: quadratic
+        update_rate: 20.0
+
+      performance:
+        enable: true
+        detailed_csv_enable: false
+        summary_csv_enable: false
+        detailed_csv_path: /tmp/rog_map_perf_detailed.csv
+        summary_csv_path: /tmp/rog_map_perf_summary.csv
+        run_id: ""
+        # [performance][string] 实验场景名。
+        scenario: ""
+        # [performance][string] 实验变体名。
+        variant: ""
+        # [performance][行] CSV flush 间隔；避免每行强制 flush 变成新瓶颈，节点退出时仍会关闭文件。
+        csv_flush_every_n: 30
+        print_enable: false
+        # [performance][Hz] 性能摘要和 summary CSV 频率。
+        summary_rate: 1.0
+        # [performance][bool] 是否启用 dirty column 增量刷新；开启可减少 projection/field 全量刷新计算量。
+        dirty_column_enable: true
+        # [performance][比例] dirty column 超过地图总列数比例时转全量刷新；调低更常全量，调高更依赖增量更新。
+        dirty_full_ratio: 0.30
+        # [performance/raycasting][bool] 并行 raycast 开关；代码后加载该值，会覆盖 raycasting.parallel_enable。
+        parallel_raycast_enable: false
+        raycast_num_threads: 4
+
+      visualization:
+        # [visualization][bool] 总开关；false 时不创建可视化 timer，不发布任何可视化 topic。
+        enable: true
+        frame_id: odom
+        # [visualization][Hz] 可视化发布上限频率；实际每个 topic 仅在存在订阅者时构造并发布。
+        rate: 10.0
+        range: [10.0, 10.0, 1.5]

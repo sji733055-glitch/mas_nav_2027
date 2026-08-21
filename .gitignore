@@ -1,0 +1,9 @@
+# Python 缓存：colcon test / pytest 运行时生成
+__pycache__/
+*.pyc
+
+# colcon 构建产物。本仓库正常在容器的 /home/ros2_ws 下构建，产物不在仓库内，
+# 这几条是防止有人直接在仓库目录里 colcon build 时把产物提交上来。
+build/
+install/
+log/

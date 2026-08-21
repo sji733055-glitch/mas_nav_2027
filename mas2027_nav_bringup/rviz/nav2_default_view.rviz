@@ -354,28 +354,28 @@ Visualization Manager:
       Axis: Z
       Channel Name: intensity
       Class: rviz_default_plugins/PointCloud2
-      Color: 255; 255; 255
-      Color Transformer: Intensity
+      Color: 255; 25; 0
+      Color Transformer: FlatColor
       Decay Time: 0
       Enabled: true
       Invert Rainbow: true
       Max Color: 255; 255; 255
-      Max Intensity: 0.20000000298023224
+      Max Intensity: 1
       Min Color: 0; 0; 0
-      Min Intensity: -0.20000000298023224
-      Name: TerrainMapExt
+      Min Intensity: 0
+      Name: RogMapTerrainMap
       Position Transformer: XYZ
       Selectable: true
-      Size (Pixels): 3
-      Size (m): 0.009999999776482582
-      Style: Points
+      Size (Pixels): 4
+      Size (m): 0.05000000074505806
+      Style: Boxes
       Topic:
         Depth: 5
         Durability Policy: Volatile
         Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: terrain_map_ext
+        Value: /rog_map/terrain_map
       Use Fixed Frame: true
       Use rainbow: true
       Value: true
@@ -547,6 +547,373 @@ Visualization Manager:
           Value: true
       Enabled: true
       Name: Controller
+    - Class: rviz_common/Group
+      Displays:
+        - Alpha: 1
+          Buffer Length: 1
+          Class: rviz_default_plugins/Path
+          Color: 200; 200; 200
+          Enabled: true
+          Head Diameter: 0.019999999552965164
+          Head Length: 0.019999999552965164
+          Length: 0.30000001192092896
+          Line Style: Lines
+          Line Width: 0.019999999552965164
+          Name: A-star Guide Path
+          Offset:
+            X: 0
+            Y: 0
+            Z: 0
+          Pose Color: 255; 85; 255
+          Pose Style: None
+          Radius: 0.029999999329447746
+          Shaft Diameter: 0.004999999888241291
+          Shaft Length: 0.019999999552965164
+          Topic:
+            Depth: 1
+            Durability Policy: Transient Local
+            Filter size: 10
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /astar_path_vis
+          Value: true
+        - Alpha: 1
+          Buffer Length: 1
+          Class: rviz_default_plugins/Path
+          Color: 0; 255; 0
+          Enabled: true
+          Head Diameter: 0.05000000074505806
+          Head Length: 0.05000000074505806
+          Length: 0.30000001192092896
+          Line Style: Billboards
+          Line Width: 0.05999999865889549
+          Name: Optimized Traj
+          Offset:
+            X: 0
+            Y: 0
+            Z: 0
+          Pose Color: 255; 85; 255
+          Pose Style: None
+          Radius: 0.029999999329447746
+          Shaft Diameter: 0.009999999776482582
+          Shaft Length: 0.029999999329447746
+          Topic:
+            Depth: 1
+            Durability Policy: Volatile
+            Filter size: 10
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /opt_path_vis
+          Value: true
+        - Class: rviz_default_plugins/Marker
+          Enabled: true
+          Name: Control Points
+          Namespaces:
+            {}
+          Topic:
+            Depth: 1
+            Durability Policy: Transient Local
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /minco_control_points_vis
+          Value: true
+        - Alpha: 1
+          Buffer Length: 1
+          Class: rviz_default_plugins/Path
+          Color: 170; 170; 0
+          Enabled: false
+          Head Diameter: 0.019999999552965164
+          Head Length: 0.019999999552965164
+          Length: 0.30000001192092896
+          Line Style: Lines
+          Line Width: 0.019999999552965164
+          Name: Candidate Paths
+          Offset:
+            X: 0
+            Y: 0
+            Z: 0
+          Pose Color: 255; 85; 255
+          Pose Style: None
+          Radius: 0.029999999329447746
+          Shaft Diameter: 0.004999999888241291
+          Shaft Length: 0.019999999552965164
+          Topic:
+            Depth: 1
+            Durability Policy: Transient Local
+            Filter size: 10
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /minco_candidate_path_vis
+          Value: false
+        - Alpha: 1
+          Buffer Length: 1
+          Class: rviz_default_plugins/Path
+          Color: 255; 170; 0
+          Enabled: false
+          Head Diameter: 0.029999999329447746
+          Head Length: 0.029999999329447746
+          Length: 0.30000001192092896
+          Line Style: Lines
+          Line Width: 0.029999999329447746
+          Name: Backup Traj
+          Offset:
+            X: 0
+            Y: 0
+            Z: 0
+          Pose Color: 255; 85; 255
+          Pose Style: None
+          Radius: 0.029999999329447746
+          Shaft Diameter: 0.004999999888241291
+          Shaft Length: 0.019999999552965164
+          Topic:
+            Depth: 1
+            Durability Policy: Volatile
+            Filter size: 10
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /backup_path_vis
+          Value: false
+        - Alpha: 1
+          Buffer Length: 1
+          Class: rviz_default_plugins/Path
+          Color: 255; 0; 255
+          Enabled: false
+          Head Diameter: 0.029999999329447746
+          Head Length: 0.029999999329447746
+          Length: 0.30000001192092896
+          Line Style: Lines
+          Line Width: 0.029999999329447746
+          Name: Recover Path
+          Offset:
+            X: 0
+            Y: 0
+            Z: 0
+          Pose Color: 255; 85; 255
+          Pose Style: None
+          Radius: 0.029999999329447746
+          Shaft Diameter: 0.004999999888241291
+          Shaft Length: 0.019999999552965164
+          Topic:
+            Depth: 1
+            Durability Policy: Volatile
+            Filter size: 10
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /recover_path
+          Value: false
+        - Class: rviz_default_plugins/Marker
+          Enabled: false
+          Name: Recover Goal
+          Namespaces:
+            {}
+          Topic:
+            Depth: 1
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /recover_goal
+          Value: false
+      Enabled: true
+      Name: MINCO Planner
+    - Class: rviz_common/Group
+      Displays:
+        - Alpha: 1
+          Buffer Length: 1
+          Class: rviz_default_plugins/Path
+          Color: 255; 60; 0
+          Enabled: true
+          Head Diameter: 0.05000000074505806
+          Head Length: 0.05000000074505806
+          Length: 0.30000001192092896
+          Line Style: Billboards
+          Line Width: 0.05000000074505806
+          Name: MPC Predict
+          Offset:
+            X: 0
+            Y: 0
+            Z: 0
+          Pose Color: 255; 85; 255
+          Pose Style: None
+          Radius: 0.029999999329447746
+          Shaft Diameter: 0.009999999776482582
+          Shaft Length: 0.029999999329447746
+          Topic:
+            Depth: 1
+            Durability Policy: Volatile
+            Filter size: 10
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /mpc_predict_path
+          Value: true
+        - Alpha: 1
+          Buffer Length: 1
+          Class: rviz_default_plugins/Path
+          Color: 0; 200; 255
+          Enabled: true
+          Head Diameter: 0.03999999910593033
+          Head Length: 0.03999999910593033
+          Length: 0.30000001192092896
+          Line Style: Billboards
+          Line Width: 0.03999999910593033
+          Name: MPC Real Path
+          Offset:
+            X: 0
+            Y: 0
+            Z: 0
+          Pose Color: 255; 85; 255
+          Pose Style: None
+          Radius: 0.029999999329447746
+          Shaft Diameter: 0.009999999776482582
+          Shaft Length: 0.029999999329447746
+          Topic:
+            Depth: 1
+            Durability Policy: Volatile
+            Filter size: 10
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /mpc_real_path
+          Value: true
+      Enabled: true
+      Name: MPC Tracking
+    - Class: rviz_common/Group
+      Displays:
+        - Alpha: 1
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 10
+            Min Value: -10
+            Value: true
+          Axis: Z
+          Channel Name: intensity
+          Class: rviz_default_plugins/PointCloud2
+          Color: 255; 170; 0
+          Color Transformer: FlatColor
+          Decay Time: 0
+          Enabled: true
+          Invert Rainbow: false
+          Max Color: 255; 255; 255
+          Max Intensity: 4096
+          Min Color: 0; 0; 0
+          Min Intensity: 0
+          Name: Occupied
+          Position Transformer: XYZ
+          Selectable: true
+          Size (Pixels): 3
+          Size (m): 0.05000000074505806
+          Style: Boxes
+          Topic:
+            Depth: 1
+            Durability Policy: Volatile
+            Filter size: 10
+            History Policy: Keep Last
+            Reliability Policy: Best Effort
+            Value: /rog_map/occupied
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: true
+        - Alpha: 1
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 10
+            Min Value: -10
+            Value: true
+          Axis: Z
+          Channel Name: intensity
+          Class: rviz_default_plugins/PointCloud2
+          Color: 255; 85; 0
+          Color Transformer: FlatColor
+          Decay Time: 0
+          Enabled: false
+          Invert Rainbow: false
+          Max Color: 255; 255; 255
+          Max Intensity: 4096
+          Min Color: 0; 0; 0
+          Min Intensity: 0
+          Name: Inflated Occupied
+          Position Transformer: XYZ
+          Selectable: true
+          Size (Pixels): 2
+          Size (m): 0.05000000074505806
+          Style: Points
+          Topic:
+            Depth: 1
+            Durability Policy: Volatile
+            Filter size: 10
+            History Policy: Keep Last
+            Reliability Policy: Best Effort
+            Value: /rog_map/inflated_occupied
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: false
+        - Alpha: 1
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 10
+            Min Value: -10
+            Value: true
+          Axis: Z
+          Channel Name: intensity
+          Class: rviz_default_plugins/PointCloud2
+          Color: 100; 100; 100
+          Color Transformer: FlatColor
+          Decay Time: 0
+          Enabled: false
+          Invert Rainbow: false
+          Max Color: 255; 255; 255
+          Max Intensity: 4096
+          Min Color: 0; 0; 0
+          Min Intensity: 0
+          Name: Unknown
+          Position Transformer: XYZ
+          Selectable: true
+          Size (Pixels): 2
+          Size (m): 0.05000000074505806
+          Style: Points
+          Topic:
+            Depth: 1
+            Durability Policy: Volatile
+            Filter size: 10
+            History Policy: Keep Last
+            Reliability Policy: Best Effort
+            Value: /rog_map/unknown
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: false
+        - Alpha: 0.699999988079071
+          Class: rviz_default_plugins/Map
+          Color Scheme: costmap
+          Draw Behind: false
+          Enabled: true
+          Name: Layer Value
+          Topic:
+            Depth: 1
+            Durability Policy: Volatile
+            Filter size: 10
+            History Policy: Keep Last
+            Reliability Policy: Best Effort
+            Value: /rog_map/layer_value
+          Update Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Best Effort
+            Value: /rog_map/layer_value_updates
+          Use Timestamp: false
+          Value: true
+        - Class: rviz_default_plugins/MarkerArray
+          Enabled: true
+          Name: Map Bound
+          Namespaces:
+            {}
+          Topic:
+            Depth: 1
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Best Effort
+            Value: /rog_map/map_bound
+          Value: true
+      Enabled: true
+      Name: ROG-Map
     - Class: rviz_default_plugins/MarkerArray
       Enabled: true
       Name: WayPoints

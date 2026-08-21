@@ -12,7 +12,7 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.descriptions import ParameterFile
 from nav2_common.launch import RewrittenYaml
@@ -29,6 +29,7 @@ def generate_launch_description():
     nav2_params_file = LaunchConfiguration("nav2_params_file")
     perception_params_file = LaunchConfiguration("perception_params_file")
     use_terrain_analysis = LaunchConfiguration("use_terrain_analysis")
+    use_terrain_analysis_near = LaunchConfiguration("use_terrain_analysis_near")
     use_fake_vel_transform = LaunchConfiguration("use_fake_vel_transform")
     use_ros2_comm = LaunchConfiguration("use_ros2_comm")
 
@@ -91,10 +92,22 @@ def generate_launch_description():
         ),
         description="Small Point-LIO and terrain parameter file",
     )
+    # 默认 False：local_costmap 和 global_costmap 的观测源都已改为
+    # rog_map ProjectionLayer 经 layer_value_to_cloud 发布的 /rog_map/terrain_map，
+    # /terrain_map 和 /terrain_map_ext 都没有消费者了。
+    # 节点和参数块都保留，置 True 即可回到原链路做 A/B（同时要把
+    # nav2_params.yaml 里两个 costmap 的 topic 改回去）。
     declare_use_terrain_analysis = DeclareLaunchArgument(
         "use_terrain_analysis",
-        default_value="True",
-        description="Start terrain_analysis and terrain_analysis_ext",
+        default_value="False",
+        description="Start terrain_analysis and terrain_analysis_ext (unused since ROG-Map took over both costmaps)",
+    )
+    # 近区 terrain_analysis 的单独开关，与 use_terrain_analysis 取逻辑与，
+    # 便于只跑 terrain_analysis_ext 做对比。
+    declare_use_terrain_analysis_near = DeclareLaunchArgument(
+        "use_terrain_analysis_near",
+        default_value="False",
+        description="Start the near-field terrain_analysis node that publishes /terrain_map",
     )
     declare_use_fake_vel_transform = DeclareLaunchArgument(
         "use_fake_vel_transform",
@@ -113,7 +126,17 @@ def generate_launch_description():
         name="terrainAnalysis",
         namespace=namespace,
         output="screen",
-        condition=IfCondition(use_terrain_analysis),
+        condition=IfCondition(
+            PythonExpression(
+                [
+                    "'",
+                    use_terrain_analysis,
+                    "'.lower() in ('true', '1') and '",
+                    use_terrain_analysis_near,
+                    "'.lower() in ('true', '1')",
+                ]
+            )
+        ),
         parameters=[configured_perception_params],
         remappings=[
             ("lidar_odometry", "/Odometry"),
@@ -277,6 +300,7 @@ def generate_launch_description():
             declare_nav2_params_file,
             declare_perception_params_file,
             declare_use_terrain_analysis,
+            declare_use_terrain_analysis_near,
             declare_use_fake_vel_transform,
             declare_use_ros2_comm,
             terrain_analysis,

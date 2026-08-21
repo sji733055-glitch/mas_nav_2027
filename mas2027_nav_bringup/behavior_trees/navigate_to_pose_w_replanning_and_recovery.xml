@@ -10,7 +10,7 @@
                         number_of_retries="1">
             <ComputePathToPose goal="{goal}"
                                path="{path}"
-                               planner_id="GridBased"/>
+                               planner_id="MincoPlanner"/>
             <ClearEntireCostmap name="ClearGlobalCostmap-Context"
                                 service_name="global_costmap/clear_entirely_global_costmap"/>
           </RecoveryNode>
