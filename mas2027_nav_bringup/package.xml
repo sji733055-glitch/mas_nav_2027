@@ -23,7 +23,6 @@
   <exec_depend>mid360_driver</exec_depend>
   <exec_depend>mas2027_robot_description</exec_depend>
   <exec_depend>loam_interface</exec_depend>
-  <exec_depend>point_lio</exec_depend>
   <exec_depend>terrain_analysis</exec_depend>
   <exec_depend>terrain_analysis_ext</exec_depend>
   <exec_depend>sensor_scan_generation</exec_depend>
