@@ -12,9 +12,9 @@ find_package(ament_lint_auto REQUIRED)
   )
   ament_lint_auto_find_test_dependencies()
 
-  # ROG-Map 的同一套参数必须在 rog_map_params.yaml（独立节点）和 nav2_params.yaml
-  # 的 MincoPlanner.rog_map 段（导航实际生效）里保持一致。ROS 2 参数文件没有
-  # 包含/引用语法，两份无法合并，所以用测试把"改了一份忘了另一份"变成构建失败。
+  # ROG-Map 参数只有一份：nav2_params.yaml 的 MincoPlanner.rog_map 段。该段是从上游
+  # navi_minco_bit 整段搬来的 80 项，其中几项按本仓库链路改过（frame_id、话题名）。
+  # 这个测试把它们钉住，防止以后同步上游时静默覆盖回 camera_init / /aft_mapped_to_init。
   find_package(ament_cmake_pytest REQUIRED)
   ament_add_pytest_test(test_rog_map_params_consistency
     test/test_rog_map_params_consistency.py

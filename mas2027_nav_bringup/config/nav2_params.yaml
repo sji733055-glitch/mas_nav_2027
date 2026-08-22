@@ -291,7 +291,8 @@ global_costmap:
 # 只剩恢复行为和碰撞检查在用。
 # rog_map 实例归 planner_server 进程所有，通过 rog_map::MapRegistry 供插件内部取用；
 # 它发布的 /rog_map/layer_value 是绝对话题名，layer_value_to_cloud 桥接节点照旧能订阅，
-# 所以整条链路只跑一份 rog_map（standalone rog_map_node 已不需要，默认不启动）。
+# 所以整条链路只跑一份 rog_map，配置就是下面的 MincoPlanner.rog_map 段，别处没有第二份
+# （原先给独立节点用的 config/rog_map_params.yaml 与 use_rog_map_standalone 开关已删除）。
 planner_server:
   ros__parameters:
     use_sim_time: false
@@ -336,8 +337,94 @@ planner_server:
         run_id: ""
         scenario: ""
         variant: ""
-      # ROG-Map 配置。取值与 mas2027_nav_bringup/config/rog_map_params.yaml 一致，
-      # 那份只给 standalone 调试节点用；nav2 跑起来时以本段为准，改参数要改这里。
+
+      # === 以下 corridor / smac_2d / minco_optimizer / recovery_server 四段 ===
+      # 原先整段缺失，全部走 minco_planner.cpp 的代码默认值。取值以上游
+      # navi_minco_bit 的 params/sentry1.yaml 为基准，只改本车必须不同的项，
+      # 每处偏离都在注释里写了原因。
+
+      # 安全走廊的车体尺寸。上游是 0.25 / 0.05（那台车更小）。
+      # 本车 footprint 0.6x0.6 m，内切半径 0.30，故 robot_radius 取 0.30，
+      # extra_margin 沿用上游 0.05，合计裕度 0.35 m。
+      # 代码默认是 0.4 + 0.15 = 0.55 m，比车体实际需要多 0.2 m，
+      # 在 10x10 m 的局部图里会把很多本可通行的缝隙判成走不了。
+      corridor:
+        robot_radius: 0.30
+        extra_margin: 0.05
+
+      # SMAC 2D 初值搜索。代码默认 use_esdf_cost 为 false，即初值只看栅格占据、
+      # 不看距离场，搜出来的折线会贴着障碍走，后面 MINCO 要多花迭代把它推开，
+      # 也更容易被 validateTrajectory 拒掉。打开后按 ESDF 距离叠加
+      # esdf_weight * exp(-dist / esdf_decay) 的代价，上限 esdf_max_cost。
+      # 四项取值与上游一致。
+      smac_2d:
+        use_esdf_cost: true
+        esdf_weight: 1.0
+        esdf_decay: 0.8
+        esdf_max_cost: 0.5
+
+      minco_optimizer:
+        opt_freq: 20.0                      # 重优化频率，单位 Hz，与 FSM 定时器一致
+        lookahead_dist: 6.0                 # 沿全局路径截取多长一段交给 MINCO 优化，单位米（上游取值）
+        traj_goal_tolerance: 0.3            # 轨迹终点与目标的允许偏差，单位米
+        # 偏航优化。本车 base_link_fake 的 yaw 恒为 0、车体自旋走 /cmd_spin，
+        # MPC 的 omega 又锁死在 [0, 0]，所以这里解出的 yaw 只会作为参考 yaw
+        # 进入 MPC 的 Q[2]=2.0 代价项，却没有可用的控制量去跟踪它。
+        # 这里先保持代码默认的 true（等于不改变现有行为），是否应该关掉待实测确认。
+        enable_yaw_opt: true
+        max_yaw_dot: 5.0                    # 偏航角速度上限，单位 rad/s（上游取值）
+
+        # safe_dist 是优化器的软目标净空，collision_dist 是 validateTrajectory 的硬判据。
+        # 必须 collision_dist < safe_dist：优化器只能渐近逼近 safe_dist，两者相等时
+        # （代码里 collision_dist 缺省就取 safe_dist）会出现「Pos 惩罚为 0 但
+        # validateTrajectory 判定碰撞」的自相矛盾拒绝，日志里已经能看到这种样本。
+        # 上游是 0.35 / 0.25，留 0.10 m 松弛；本车内切半径 0.30，按同样关系取 0.40 / 0.30。
+        safe_dist: 0.40
+        collision_dist: 0.30
+
+        # 必须与执行侧限幅一致。MincoMpcController 的 vx/vy 是 ±1.0、ax/ay 是 ±1.0，
+        # velocity_smoother 的 max_velocity / max_accel 也是 1.0。
+        # 代码默认 2.0 / 4.0（上游 3.0 / 2.0），优化出的轨迹执行不出来，MPC 只会一直落后。
+        max_velocity: 1.0
+        max_acceleration: 1.0
+
+        turn_angle_deadzone: 0.1            # 转向角死区，单位弧度（上游取值，代码默认 0.174）
+        turn_angle_saturation: 1.0          # 转向角饱和值，单位弧度（上游取值，代码默认 1.57）
+        min_turn_vel: 0.8                   # 转弯时的最低保持速度，单位 m/s（上游取值）
+        decay_power: 1.3                    # 转弯降速的衰减指数（上游取值，代码默认 2.0）
+
+        time_allocation_iters: 15           # 时间分配的迭代次数（上游取值，与代码默认一致）
+        smooth_eps: 0.01                    # 光滑化 max 函数的 epsilon（上游取值，与代码默认一致）
+        integral_res: 16                    # 惩罚项沿轨迹的积分采样数（上游取值，与代码默认一致）
+        opt_accuracy: 0.001                 # L-BFGS 收敛阈值（上游取值，代码默认 1.0e-4 更严、更慢）
+        # 代码默认是 true，就是日志里每次优化都刷一整块 "[MincoOpt] Opt finish" 的来源。
+        # 上游关掉了；本仓库同样关掉，需要看优化过程时再临时打开。
+        print_optimizer_log: false
+
+        # === 惩罚权重 ===
+        # penalty_weight_time 是全局时间惩罚（代码里对应 minco_config.rho）。
+        # 代码默认 0.01，几乎不惩罚轨迹时长，结果 0.95 m 的目标被优化成 5 s
+        # （平均 0.19 m/s），MPC 在 0.5 s 预测时域内取到的参考速度全部落在
+        # deadzone_speed_threshold 以下。上游取 100.0，相差 1 万倍。
+        penalty_weight_time: 100.0
+        penalty_weight_pos: 50000.0         # 位置（净空）惩罚，代码默认 1000.0，上游 50000.0
+        penalty_weight_vel: 1500.0          # 速度越界惩罚，代码默认 1000.0
+        penalty_weight_acc: 1500.0          # 加速度越界惩罚，代码默认 10000.0（偏大，会压住加速）
+        penalty_weight_att: 100.0           # 吸引项惩罚，代码默认 1000.0
+        penalty_weight_time_barrier: 50.0   # 时间下界障碍项，代码默认 100.0
+
+      # 规划器内部的恢复状态机，与 Nav2 behavior_server 的 backup/wait 是两套东西。
+      # 四项取值与上游一致（代码默认 3 / 2.0 / 3.0 / 0.4）。
+      recovery_server:
+        fail_threshold: 5                   # 连续失败多少次进入恢复
+        cooldown_sec: 1.0                   # 两次恢复之间的冷却时长，单位秒
+        recovery_window_sec: 3.0            # 统计失败次数的滑动窗口，单位秒
+        escape_speed: 0.5                   # 脱困速度，单位 m/s
+
+      # ROG-Map 配置。**这是全仓库唯一一份 ROG-Map 参数**，改参数就改这里。
+      # 取值搬自上游 navi_minco_bit 的 sentry1.yaml，其中 frame_id、visualization.frame_id、
+      # ros_callback.odom_topic、ros_callback.cloud_topic 四项按本仓库链路改过，
+      # 由 test/test_rog_map_params_consistency.py 钉住，别在同步上游时覆盖回去。
       rog_map:
         frame_id: odom
         resolution: 0.05
@@ -476,8 +563,12 @@ planner_server:
 
         performance:
           enable: true
-          detailed_csv_enable: false
-          summary_csv_enable: false
+          # NOTE: 下面两个 CSV 开关和 print_enable 是为了定位
+          # " -- [ROG WARN] Unfinished frame cnt > 1" 临时打开的，用于量出单帧更新里
+          # raycast / prob_update / decay / projection / field / snapshot 各占多少毫秒。
+          # detailed 每帧写一行，量完请改回 false，不要长期开着跑比赛。
+          detailed_csv_enable: true
+          summary_csv_enable: true
           detailed_csv_path: /tmp/rog_map_perf_detailed.csv
           summary_csv_path: /tmp/rog_map_perf_summary.csv
           run_id: ""
@@ -491,6 +582,7 @@ planner_server:
           # [performance][Hz] 性能摘要和 summary CSV 频率。
           summary_rate: 1.0
           # [performance][bool] 是否启用 dirty column 增量刷新；开启可减少 projection/field 全量刷新计算量。
+          # 定位实时性问题时可以临时置 false 做 A/B，看增量刷新是否真的生效。
           dirty_column_enable: true
           # [performance][比例] dirty column 超过地图总列数比例时转全量刷新；调低更常全量，调高更依赖增量更新。
           dirty_full_ratio: 0.30

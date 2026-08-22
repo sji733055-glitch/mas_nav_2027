@@ -39,7 +39,7 @@
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
-  <!-- test/test_rog_map_params_consistency.py：比对两份 ROG-Map 参数是否漂移 -->
+  <!-- test/test_rog_map_params_consistency.py：钉住 ROG-Map 段里本仓库改过的取值 -->
   <test_depend>ament_cmake_pytest</test_depend>
   <test_depend>ament_cmake_clang_format</test_depend>
   <test_depend>ament_cmake_black</test_depend>

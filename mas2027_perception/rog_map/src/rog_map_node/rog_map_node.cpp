@@ -7,7 +7,14 @@
 // 上游库源码由 CMakeLists 中 src/rog_map/*.cpp 与 src/rog_map_ros/*.cpp 的 glob
 // 收集，本目录不在其中，因此这个文件不会混进上游代码，方便后续同步上游。
 //
-// 输入（默认由 mas2027_nav_bringup/config/rog_map_params.yaml 配置）：
+// 这个可执行文件不参与导航链路：跑 nav2 时 ROG-Map 由 planner_server 进程内的
+// MincoPlanner 插件持有（参数在 mas2027_nav_bringup/config/nav2_params.yaml 的
+// MincoPlanner.rog_map 段）。**不要与导航同时启动**，否则两份 rog_map 同发
+// /rog_map/layer_value，滑动原点不同，下游桥接输出会在两套栅格之间跳变。
+// 它只用于不跑导航时单独调建图，参数需自备（节点名 rog_map，参数前缀同为 rog_map；
+// mas2027_nav_bringup 里原先那份 config/rog_map_params.yaml 已删除）。
+//
+// 输入：
 //   /Odometry         nav_msgs/Odometry     small_point_lio，父坐标系 odom
 //   /cloud_registered sensor_msgs/PointCloud2  small_point_lio，odom 坐标系
 //

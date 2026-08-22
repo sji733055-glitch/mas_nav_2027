@@ -47,8 +47,6 @@ def generate_launch_description():
     use_rviz = LaunchConfiguration("use_rviz")
     use_terrain_analysis_near = LaunchConfiguration("use_terrain_analysis_near")
     use_rog_map = LaunchConfiguration("use_rog_map")
-    use_rog_map_standalone = LaunchConfiguration("use_rog_map_standalone")
-    rog_map_params_file = LaunchConfiguration("rog_map_params_file")
 
     # Declare the launch arguments
 
@@ -119,12 +117,6 @@ def generate_launch_description():
         "use_rviz", default_value="True", description="Whether to start RVIZ"
     )
 
-    declare_rog_map_params_file_cmd = DeclareLaunchArgument(
-        "rog_map_params_file",
-        default_value=os.path.join(bringup_dir, "config", "rog_map_params.yaml"),
-        description="Full path to the ROG-Map parameter file",
-    )
-
     # NOTE: 必须为 True。nav2_params.yaml 里 local_costmap 和 global_costmap 的
     # 观测源都指向 /rog_map/terrain_map，由 layer_value_to_cloud 桥接节点发布。
     # 关掉之后两个 costmap 都收不到任何障碍观测，导航会直接撞障碍。
@@ -134,18 +126,18 @@ def generate_launch_description():
         description="Start the layer_value_to_cloud bridge that feeds both costmaps",
     )
 
-    # ROG-Map 实例的归属：MincoPlanner 插件在 planner_server 进程里自己建一份
-    # （配置在 nav2_params.yaml 的 planner_server.MincoPlanner.rog_map 段），
-    # 并通过 rog_map::MapRegistry 供插件内部查询 ESDF。它发布的
-    # /rog_map/layer_value 是绝对话题名，桥接节点照旧能订阅。
-    # 所以跑 nav2 时不要再起独立节点，否则会有两份 rog_map 同时发同一个话题，
-    # 滑动原点不同，桥接输出会在两套栅格之间跳变。
-    # 只有在 use_nav2:=False（只看建图效果、不跑导航）时才需要置 True。
-    declare_use_rog_map_standalone_cmd = DeclareLaunchArgument(
-        "use_rog_map_standalone",
-        default_value="False",
-        description="Start a standalone rog_map node; only needed when Nav2/MincoPlanner is not running",
-    )
+    # ROG-Map 实例的归属：整条链路只有一份 ROG-Map，由 MincoPlanner 插件在
+    # planner_server 进程里建，配置在 nav2_params.yaml 的
+    # planner_server.ros__parameters.MincoPlanner.rog_map 段——那是唯一一份
+    # ROG-Map 参数，改参数只改那里。插件通过 rog_map::MapRegistry 内部查询 ESDF；
+    # 它发布的 /rog_map/layer_value 是绝对话题名，下面的桥接节点照旧能订阅。
+    #
+    # 本启动文件曾提供 use_rog_map_standalone 开关来另起一个独立 rog_map 节点
+    # （配 config/rog_map_params.yaml），用于 use_nav2:=False 时单看建图效果。
+    # 该开关与那份参数文件已删除：两份参数要靠测试盯着才不漂移，而独立节点跑起来
+    # 必须保证不与插件内那份同时存在，否则两份 rog_map 同发一个话题、滑动原点不同，
+    # 桥接输出会在两套栅格之间跳变。要单独调建图，直接跑 rog_map 包自带的
+    # rog_map_node 并自备参数文件（节点名 rog_map，参数前缀同为 rog_map）。
 
     declare_use_terrain_analysis_near_cmd = DeclareLaunchArgument(
         "use_terrain_analysis_near",
@@ -158,16 +150,6 @@ def generate_launch_description():
     configured_small_point_lio_params = ParameterFile(
         RewrittenYaml(
             source_file=small_point_lio_params_file,
-            root_key=namespace,
-            param_rewrites={},
-            convert_types=True,
-        ),
-        allow_substs=True,
-    )
-
-    configured_rog_map_params = ParameterFile(
-        RewrittenYaml(
-            source_file=rog_map_params_file,
             root_key=namespace,
             param_rewrites={},
             convert_types=True,
@@ -203,24 +185,12 @@ def generate_launch_description():
         parameters=[configured_small_point_lio_params],
     )
 
-    # 独立 ROG-Map 节点。订阅 small_point_lio 的 /Odometry 与 /cloud_registered，
-    # 输出 /rog_map/* 供 RViz 显示。默认不启动，见 use_rog_map_standalone 的说明：
-    # 跑 nav2 时这份地图由 planner_server 里的 MincoPlanner 插件持有。
-    start_rog_map_node = Node(
-        package="rog_map",
-        executable="rog_map_node",
-        name="rog_map",
-        output="screen",
-        condition=IfCondition(use_rog_map_standalone),
-        parameters=[configured_rog_map_params],
-    )
-
     # /rog_map/layer_value (OccupancyGrid) -> /rog_map/terrain_map (PointXYZI)
     # 供 local_costmap 和 global_costmap 的 pb_nav2_costmap_2d::IntensityVoxelLayer
     # 使用，取代 terrain_analysis 的 /terrain_map 和 terrain_analysis_ext 的
     # /terrain_map_ext。
-    # NOTE: layer_value 是在 rog_map 的可视化定时器里发布的，所以
-    # rog_map_params.yaml 的 visualization.enable 必须为 True，
+    # NOTE: layer_value 是在 rog_map 的可视化定时器里发布的，所以 nav2_params.yaml 的
+    # MincoPlanner.rog_map.visualization.enable 必须为 True，
     # 且 visualization.rate 就是 local_costmap 实际拿到观测的频率。
     start_rog_map_costmap_bridge_node = Node(
         package="rog_map",
@@ -284,15 +254,12 @@ def generate_launch_description():
     ld.add_action(declare_use_fake_vel_transform_cmd)
     ld.add_action(declare_use_ros2_comm_cmd)
     ld.add_action(declare_use_rviz_cmd)
-    ld.add_action(declare_rog_map_params_file_cmd)
     ld.add_action(declare_use_rog_map_cmd)
-    ld.add_action(declare_use_rog_map_standalone_cmd)
 
     # Add the actions to launch all of the navigation nodes
     ld.add_action(start_robot_state_publisher_cmd)
     ld.add_action(start_mid360_driver_node)
     ld.add_action(start_small_point_lio_node)
-    ld.add_action(start_rog_map_node)
     ld.add_action(start_rog_map_costmap_bridge_node)
     ld.add_action(start_nav2_cmd)
     ld.add_action(rviz_cmd)
